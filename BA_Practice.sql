@@ -125,3 +125,162 @@ INNER JOIN Employees e ON o.EmployeeID = e.EmployeeID
 
 -- ÖDEV: kendi senaryolarınızı yaratarak Northwind üzerinden 30 tane sorgu tasarlayınız.
 -- NOT: öğrendiğimiz bütün kavramları kullanmaya özen gösterin.
+
+
+
+
+--#####################---20.02.2022 (Ders2)---####################
+
+
+
+-- Customers tablosundan CompanyName'i 'Hu' ile başlayan kayıtları çekiniz.
+-- Customers tablosunda ConmpanyName'i 'A' ile başlayan ContactName'i 'o' ile biten verileri dönen sorguyu yazınız 
+-- Employee tablosundan FirstNameinin içinde 'e' harfi olan kayıtları dönünüz.
+
+
+SELECT * FROM Customers
+WHERE CompanyName LIKE 'Hu%'
+SELECT * FROM Customers
+WHERE CompanyName LIKE 'A%' AND ContactName LIKE '%o'
+SELECT * FROM Employees
+WHERE FirstName LIKE '%e%'
+
+
+-- psychology okuyan çalışanlarım hangileri? (adı soyadı tek bir kolonda yazsın)
+
+SELECT FirstName + ' ' + LastName as [Adı Soyadı]
+FROM Employees 
+WHERE Notes LIKE '%psychology%' 
+
+
+-- ## DISTINCT tekrarlı verilerden sadece bir tanesini getirir.
+
+SELECT DISTINCT Title from Employees 
+
+-- Hangi ülkelere ihracat yapıyorum ?.
+-- Kaç farklı ülkeye ihracat yapıyorum..? (COUNT())
+
+
+SELECT DISTINCT Country FROM Customers
+SELECT COUNT(DISTINCT Country) FROM Customers
+
+
+-- ## TOP 
+SELECT * FROM Employees
+SELECT TOP 2 * FROM Employees
+SELECT TOP 50 PERCENT * FROM Employees
+
+
+--En Pahalı 5 ürünüm nedir? (ProductName, UnitPrice)
+
+SELECT TOP 5 ProductName, UnitPrice
+FROM Products
+ORDER BY UnitPrice DESC
+
+--En pahalı ürünümün adı,fiyatı ve kategorisinin adı nedir?
+
+SELECT TOP 1 p.ProductName, p.UnitPrice, c.CategoryName  FROM
+Products p
+INNER JOIN Categories c ON c.CategoryID = p.CategoryID 
+ORDER BY UnitPrice DESC
+
+-- Order tablosunda ki siparişleri siparişi veren müşteri ve ilgilenen çalışanın adları ve telefon numaraları ile listeleyiniz.
+
+SELECT 
+ 	o.OrderID as [Order No], 
+ 	c.CompanyName as [Customer Name], 
+ 	c.Phone as [Customer Tel No], 
+ 	e.FirstName + ' ' + e.LastName as [Employee Name],
+ 	e.HomePhone as [Employee Home No]
+FROM Orders o 
+INNER JOIN Customers c ON o.CustomerID = c.CustomerID
+INNER JOIN Employees e ON o.EmployeeID = e.EmployeeID 
+
+
+
+
+--Geciken siparişlerimin tarihi, müşterisinin adını listeleyelim.
+
+SELECT o.OrderDate, c.CompanyName FROM Orders o 
+INNER JOIN Customers c ON o.CustomerID = c.CustomerID 
+WHERE o.RequiredDate < o.ShippedDate 
+
+SELECT o.OrderDate, c.CompanyName FROM Orders o 
+INNER JOIN Customers c ON o.CustomerID = c.CustomerID 
+WHERE DATEDIFF(DAY, o.RequiredDate, o.ShippedDate) > 0 
+
+
+
+--Satışlarımı kaç günde teslim etmişim? (OrderID, gün sayısını, büyükten küçüğe sıralayalım.)
+--Çalışanlarımın Ad, Soyad ve Yaşları (GETDATE(), (c# DateTime.Now))
+
+SELECT 
+	OrderID, 
+	DATEDIFF(DAY, OrderDate, ShippedDate) AS [Total Day]
+FROM Orders
+ORDER BY 2 DESC
+
+SELECT 
+	FirstName + ' ' + LastName AS [Adı Soyadı],
+	DATEDIFF(YEAR, BirthDate, GETDATE()) AS [Yaşı]
+FROM Employees
+ORDER BY [Yaşı] DESC
+
+
+--Şirketim, şimdiye kadar ne kadar ciro yapmış..? (SUM, ROUND)
+
+SELECT SUM(UnitPrice*Quantity*(1-Discount)) AS [Toplam Ciro]
+FROM [Order Details]
+
+
+--Ortalama Ürün Fiyatım nedir? (AVG)
+
+SELECT AVG(UnitPrice) FROM Products
+ 
+
+-- Hangi çalışanım hangi çalışanıma bağlı? (çalışanın adı, müdürünün adı)
+
+SELECT 
+	e.FirstName [Çalışan], 
+	e2.FirstName [Reports To] 
+FROM Employees e 
+INNER JOIN Employees e2 ON e.ReportsTo = e2.EmployeeID
+
+SELECT 
+	e.FirstName [Çalışan], 
+	e2.FirstName [Reports To] 
+FROM Employees e 
+LEFT JOIN Employees e2 ON e.ReportsTo = e2.EmployeeID 
+
+
+-- Her kategoride kaç tane ürün var? (CategoryName - Count)
+
+SELECT c.CategoryName, COUNT(p.ProductName) FROM Products p 
+INNER JOIN Categories c ON c.CategoryID = p.CategoryID 
+GROUP BY c.CategoryName 
+
+
+
+
+-- Hangi siparişten ne kadar kazanmışım ? (orderID, toplam kazanç)
+
+SELECT * FROM [Order Details]
+ORDER BY OrderID 
+
+
+SELECT 
+	OrderID, 
+	ROUND(SUM(UnitPrice * Quantity * (1 - Discount)),2) AS [Total Price] 
+FROM [Order Details]
+GROUP BY OrderID 
+ORDER BY 2 DESC
+
+
+--ÖDEV
+
+--1) 'Ürün Adı', 'Ürün Fiyatı', 'Ortalama Satış Fiyatı' tablosunu oluşturunuz.
+--2) Çalışanlarım ne kadarlık satış yapmışlar? (Gelir bazında) ('Çalışanın Adı', 'Toplam Satış Tutarı' kolonlarını bekliyorum).
+--3) Ürünlere göre satışım nasıl? (Ürün-Adet-Gelir Raporu)('Ürün Sayısı', 'Ürün Adedi', 'Toplam Tutar' kolonlarını bekliyorum).
+--4) 1997 yılında en çok satış yapan çalışanımın ID,Ad soyad, Toplam Satış Tutarı tablosunu oluşturunuz.
+
+
