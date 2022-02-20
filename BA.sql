@@ -17,6 +17,7 @@
 --SQL SERVER default olarak 1433 portunda çalışır
 SELECT 2
 SELECT 3 * (3 + 4) AS Result
+SELECT 1.0 * 23 / 5
 
 
 SELECT 'Can' AS 'FirstName', 'PERK' AS 'LastName', 33 AS 'Age'
@@ -81,19 +82,199 @@ ORDER BY Name
 SELECT p.ProductName AS Name, p.UnitPrice * p.UnitsInStock AS [Total Price] FROM Products AS p 
 ORDER BY 2 DESC -- 2 demek 2. sıradaki kolon demek
 
+--GÜN 2
 
+SELECT * FROM Orders
+WHERE CustomerID = 'ALFKI'
 
+SELECT od.OrderID, p.ProductName, p.UnitPrice,  od.UnitPrice, od.Quantity, od.Discount 
+FROM [Order Details] od
+INNER JOIN Products p ON od.ProductID = p.ProductID 
+WHERE p.UnitPrice <> od.UnitPrice 
 
+-- Sipariş Detayında ürünün fiyatı, satış fiyatı ve diğer bilgileri, sipariş tarihi
+SELECT p.ProductName, p.UnitPrice,  od.UnitPrice, od.Quantity, od.Discount, o.OrderDate  
+FROM [Order Details] od
+INNER JOIN Products p ON od.ProductID = p.ProductID 
+INNER JOIN Orders o ON od.OrderID = o.OrderID 
+WHERE od.OrderID = 10250
 
+--Sipariş Detayındaki indirim bilgileri
+SELECT 
+	UnitPrice * Quantity AS Orijinal, 
+	UnitPrice * Quantity * (1 - Discount) AS Indirimli,
+	UnitPrice * Quantity * Discount AS Indirim
+FROM [Order Details] od 
+WHERE OrderID = 10250
+--AGGREATE FUNCTIONS -> COUNT, SUM, AVG, MIN, MAX
 
+--Toplam kazanç
+SELECT SUM(UnitPrice * Quantity * (1 - Discount)) AS Summary -- ROUND(kolon, 2) 2 basamağa yuvarlar
+FROM [Order Details] od 
+WHERE OrderID = 10250
 
+--Siparişlerdeki ortalama kazanç nedir
+SELECT AVG(UnitPrice * Quantity * (1 - Discount)) AS Average FROM [Order Details]
 
+-- 1-n relation (1 veriye karşılık n adet verinin tutulması) => 1 Customer'ın n tane siparişi olabilir
+--Kaç adet sipariş var
+SELECT COUNT(0)
+FROM Orders o 
+INNER JOIN Customers c ON c.CustomerID = o.CustomerID 
 
+--GROUP BY
+--Müşterilerin çoktan aza sipariş verme sayısı
+SELECT c.CustomerID, COUNT(0) AS [Order Count]
+FROM Orders o 
+INNER JOIN Customers c ON c.CustomerID = o.CustomerID
+GROUP BY c.CustomerID 
+ORDER BY [Order Count] DESC
 
+--En çok sipariş veren 10 müşteri
+SELECT TOP 10 c.CustomerID, COUNT(0) AS [Order Count]
+FROM Orders o 
+INNER JOIN Customers c ON c.CustomerID = o.CustomerID
+GROUP BY c.CustomerID 
+ORDER BY [Order Count] DESC
 
+--En çok sipariş veren 6 müşteri
+SELECT TOP 6 WITH TIES c.CustomerID, COUNT(0) AS [Order Count]
+FROM Orders o 
+INNER JOIN Customers c ON c.CustomerID = o.CustomerID
+GROUP BY c.CustomerID 
+ORDER BY [Order Count] DESC --8 kayıt döner çünkü 6. satıra ait veriye eşit başka 2 satır daha var
 
+-----------       -----------  
+ALFKI | 6         BOTTM | 9         
+ANATR | 4         BERGS | 8         
+ANTON | 3         ALFKI | 6         
+...               ...
+...               ...
+BOTTM | 9         ANTON | 3
 
+SELECT TOP 3 c.CustomerID, c.ContactName, c.Phone, COUNT(0) AS [Order Count]
+FROM Orders o 
+INNER JOIN Customers c ON c.CustomerID = o.CustomerID
+GROUP BY c.CustomerID, c.ContactName, c.Phone 
+ORDER BY [Order Count] DESC
 
+--İndirimlerden ne kadar zarar elde edildi
+SELECT 
+	SUM(UnitPrice * Quantity) AS [Total Amount], 
+	SUM(UnitPrice * Quantity * Discount) AS [Total Discount],
+	SUM(UnitPrice * Quantity * Discount) / SUM(UnitPrice * Quantity) * 100 AS Ratio -- KEKO Yöntem
+FROM [Order Details]
+
+-- TODO: Ay ay ne kadar indirim yapılmış
+
+--HAVING
+-- en çok alışveriş yapan ve alışveriş sayısın 20'den çok olan ilk 10 müşteri
+SELECT TOP 10 c.CustomerID, COUNT(0) AS [Order Count]
+FROM Orders o 
+INNER JOIN Customers c ON c.CustomerID = o.CustomerID
+GROUP BY c.CustomerID 
+HAVING COUNT(0) > 20 -- AGGREATE FUNCTION için filtreleme yapabilmek için kullanılır
+ORDER BY [Order Count] DESC
+
+-- Toplam alışverişi 5000 lirayı geçmeyen müşterilerin telefon numaraları ve isimleri
+SELECT 
+	c.CompanyName AS Name, 
+	c.Phone AS Phone,
+	ROUND(SUM(od.UnitPrice * od.Quantity * (1-od.Discount)), 2) AS Summary
+FROM Orders o
+INNER JOIN [Order Details] od ON o.OrderID = od.OrderID
+INNER JOIN Customers c ON o.CustomerID = c.CustomerID
+GROUP BY c.CompanyName, c.Phone
+HAVING SUM(od.UnitPrice * od.Quantity * (1-od.Discount)) < 5000
+ORDER BY 3 ASC
+
+---JOIN Türleri
+SELECT p.ProductName, c.CategoryName FROM Categories c 
+INNER JOIN Products p ON c.CategoryID = p.CategoryID -- Sadece JOIN de olur
+ORDER BY c.CategoryID DESC
+
+SELECT p.ProductName, c.CategoryName FROM Categories c 
+LEFT JOIN Products p ON c.CategoryID = p.CategoryID -- LEFT OUTER JOIN de olur
+ORDER BY c.CategoryID DESC
+
+SELECT p.ProductName, c.CategoryName FROM Categories c 
+RIGHT JOIN Products p ON c.CategoryID = p.CategoryID -- RIGHT OUTER JOIN
+ORDER BY c.CategoryID DESC
+
+SELECT p.ProductName, c.CategoryName FROM Categories c 
+FULL OUTER JOIN Products p ON c.CategoryID = p.CategoryID 
+ORDER BY c.CategoryID DESC
+
+SELECT p.ProductName, c.CategoryName FROM Categories c 
+CROSS JOIN Products p 
+ORDER BY c.CategoryID DESC
+
+--DATETIME FONKSIYONLARI
+SELECT DATEPART(YEAR, GETDATE())
+SELECT DATEDIFF(MONTH, '1988-02-08', GETDATE())
+SELECT DATEDIFF(MONTH, '2017-05-08', GETDATE()) / 4 ---> Ah seni bekleyeli belki 14 bahar geçti :D
+SELECT FORMAT(GETDATE(), 'dd MMMM yyyy')
+SELECT DATEADD(MONTH, 3, GETDATE()) 
+SELECT DATEADD(SECOND, 30, GETDATE()) 
+SELECT DATEADD(DAY, 3, '2022-01-01')
+-- Intervals -> YEAR, MONTH, DAY, HOUR, MINUTE, SECOND, MILLISECOND
+
+--Personel Yaşları
+SELECT FirstName, LastName, DATEDIFF(YEAR, BirthDate, GETDATE()) AS Age  FROM Employees 
+
+--En yaşlı çalışan
+SELECT TOP 1 WITH TIES FirstName, LastName, DATEDIFF(YEAR, BirthDate, GETDATE()) AS Age  
+FROM Employees 
+ORDER BY Age DESC
+
+SELECT TOP 1 WITH TIES FirstName, LastName, DATEDIFF(YEAR, BirthDate, GETDATE()) AS Age  
+FROM Employees 
+ORDER BY BirthDate
+
+--LIKE 
+SELECT ContactName, CompanyName FROM Customers c 
+WHERE ContactName LIKE 'mar%'
+ORDER BY ContactName
+
+SELECT ContactName, CompanyName FROM Customers c 
+WHERE ContactName LIKE '%ler'
+ORDER BY ContactName
+
+--CASE WHEN
+SELECT 
+	FirstName, 
+	LastName, 
+	CASE Country 
+		WHEN 'USA' THEN 'Amerika' 
+		WHEN 'UK' THEN 'İngiltere' 
+		ELSE 'Tanımsız' 
+	END AS Country 
+FROM Employees
+--Kritik Seviye 10
+SELECT 
+	ProductName,
+	CASE WHEN UnitsInStock > 10 THEN 'Stokta Var'
+		 WHEN UnitsInStock BETWEEN 1 AND 10 THEN 'Kritik Seviye'
+		 ELSE 'Yok'
+	END AS Status
+FROM Products 
+
+SELECT 
+	CASE TitleOfCourtesy 
+		WHEN 'Mr.' THEN 'Male'
+		WHEN 'Mrs.' THEN 'Female'
+		WHEN 'Ms.' THEN 'Female'
+		ELSE 'Unknown'
+	END AS Gender,
+	FirstName + ' ' + LastName AS FullName 
+FROM Employees
+
+--COALESCE
+SELECT 
+	FirstName, 
+	LastName,
+	COALESCE(Region, City, Country, 'No Region') AS Region
+FROM Employees
 
 
 
