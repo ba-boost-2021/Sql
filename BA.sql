@@ -276,6 +276,153 @@ SELECT
 	COALESCE(Region, City, Country, 'No Region') AS Region
 FROM Employees
 
+--GÜN 3
+
+SELECT '           Mustafa Kemal Atatürk          '
+SELECT LEN('           Mustafa Kemal Atatürk          ')
+SELECT TRIM('           Mustafa Kemal Atatürk          ')
+SELECT LTRIM('           Mustafa Kemal Atatürk          ')
+SELECT RTRIM('           Mustafa Kemal Atatürk          ')
+SELECT LEN(TRIM('           Mustafa Kemal Atatürk          ')) 
+SELECT SUBSTRING('Mustafa Kemal Atatürk', 0, 14) 
+
+SELECT mka.value AS Name, c.CategoryName FROM STRING_SPLIT('Mustafa Kemal Atatürk', ' ') mka
+CROSS JOIN Categories c 
+
+-- Database uyumluluk versiyonunu String Split in çalışabileceği versiyona yükselltik (Backup dosyası 100 sayılı uyumluluk modunda idi)
+ALTER DATABASE Northwind SET COMPATIBILITY_LEVEL = 150
+
+SELECT name, compatibility_level FROM sys.databases -- sistemimizdeki veritabanı uyumluluk seviyesi kontrolü için
+
+SELECT TRANSLATE('2*[3+4]/{7-2}', '[]{}', '()()'); -- denedik translate değilmiş :D
+
+--Tekilleştirme amaçlı yazılır
+SELECT DISTINCT
+	p.ProductName,
+	o.OrderDate 
+FROM [Order Details] od 
+INNER JOIN Orders o ON od.OrderID = od.OrderID 
+INNER JOIN Products p ON p.ProductID = od.ProductID 
+
+SELECT p.ProductName, o.OrderDate, COUNT(0) AS Count
+FROM [Order Details] od 
+INNER JOIN Orders o ON od.OrderID = od.OrderID 
+INNER JOIN Products p ON p.ProductID = od.ProductID 
+WHERE o.OrderDate BETWEEN '1996-12-01' AND '1996-12-31' AND p.ProductID = 3
+GROUP BY p.ProductName, o.OrderDate 
+
+----
+SELECT p.ProductName, p.UnitPrice, p.UnitsInStock  FROM Products p 
+INNER JOIN Categories c ON c.CategoryID = p.CategoryID 
+WHERE c.CategoryName LIKE 'Cond%';
+
+
+--Sub Query
+SELECT p.ProductName, p.UnitPrice, p.UnitsInStock  FROM Products p  
+WHERE p.CategoryID = (SELECT TOP 1 c.CategoryId FROM Categories c WHERE c.CategoryName LIKE 'Cond%')
+
+
+--IN Kullanımı
+SELECT p.ProductName, p.UnitPrice, p.UnitsInStock  FROM Products p  
+WHERE p.CategoryID = 1 OR p.CategoryID = 2
+
+SELECT p.ProductName, p.UnitPrice, p.UnitsInStock  FROM Products p
+WHERE p.CategoryID IN (1, 2)
+
+-- EXIST
+-- STOKTA TÜKENMİŞ ÜRÜNLERİ KATEGORİLERİ
+SELECT c.CategoryName 
+FROM Categories c 
+WHERE EXISTS (SELECT p.ProductName FROM Products AS p 
+			  WHERE p.CategoryID = c.CategoryID AND p.UnitsInStock = 0);
+
+SELECT c.CategoryName 
+FROM Categories c 
+WHERE CategoryID IN (SELECT DISTINCT p.CategoryID FROM Products p
+					 WHERE p.UnitsInStock = 0)
+
+-- ROLL UP
+SELECT p.ProductName, DATEPART(YEAR, o.OrderDate) AS Year, DATEPART(MONTH, o.OrderDate) AS Month, SUM(od.UnitPrice * od.Quantity) AS Total 
+FROM Orders o 
+INNER JOIN [Order Details] od ON od.OrderID = o.OrderID 
+INNER JOIN Products p ON p.ProductID = od.ProductID
+GROUP BY p.ProductName, DATEPART(YEAR, o.OrderDate), DATEPART(MONTH, o.OrderDate)
+WITH ROLLUP 
+ORDER BY ProductName
+
+-- CUBE
+SELECT p.ProductName, DATEPART(YEAR, o.OrderDate) AS Year, DATEPART(MONTH, o.OrderDate) AS Month, SUM(od.UnitPrice * od.Quantity) AS Total 
+FROM Orders o 
+INNER JOIN [Order Details] od ON od.OrderID = o.OrderID 
+INNER JOIN Products p ON p.ProductID = od.ProductID
+GROUP BY p.ProductName, DATEPART(YEAR, o.OrderDate), DATEPART(MONTH, o.OrderDate)
+WITH CUBE 
+ORDER BY ProductName, Year, Month
+
+--GROUPING SETS
+SELECT p.ProductName, DATEPART(YEAR, o.OrderDate) AS Year, DATEPART(MONTH, o.OrderDate) AS Month, SUM(od.UnitPrice * od.Quantity) AS Total 
+FROM Orders o 
+INNER JOIN [Order Details] od ON od.OrderID = o.OrderID 
+INNER JOIN Products p ON p.ProductID = od.ProductID
+GROUP BY GROUPING SETS (p.ProductName, (DATEPART(YEAR, o.OrderDate), DATEPART(MONTH, o.OrderDate)))
+ORDER BY ProductName 
+
+
+SELECT NULL AS ProductName,  NULL AS Year, NULL AS Month, SUM(UnitPrice * Quantity) Total FROM [Order Details] od
+UNION
+SELECT p.ProductName, DATEPART(YEAR, o.OrderDate) AS Year, DATEPART(MONTH, o.OrderDate) AS Month, SUM(od.UnitPrice * od.Quantity) AS Total 
+FROM Orders o 
+INNER JOIN [Order Details] od ON od.OrderID = o.OrderID 
+INNER JOIN Products p ON p.ProductID = od.ProductID
+WHERE p.ProductID = 1 AND DATEPART(YEAR, o.OrderDate) = 1996 
+GROUP BY p.ProductName, DATEPART(YEAR, o.OrderDate), DATEPART(MONTH, o.OrderDate)
+UNION
+SELECT p.ProductName, DATEPART(YEAR, o.OrderDate) AS Year, NULL AS Month, SUM(od.UnitPrice * od.Quantity) AS Total 
+FROM Orders o 
+INNER JOIN [Order Details] od ON od.OrderID = o.OrderID 
+INNER JOIN Products p ON p.ProductID = od.ProductID
+WHERE p.ProductID = 1 AND DATEPART(YEAR, o.OrderDate) = 1996 
+GROUP BY p.ProductName, DATEPART(YEAR, o.OrderDate)
+-- ... ve diğer super master keko çözüm
+
+
+SET STATISTICS TIME OFF
+SET STATISTICS IO OFF
+
+
+--- ROW_NUMBER & OVER
+SELECT ROW_NUMBER () OVER(ORDER BY SUM(od.UnitPrice * od.Quantity)) AS OrderNo,  p.ProductName, DATEPART(YEAR, o.OrderDate) AS Year, SUM(od.UnitPrice * od.Quantity) AS Total 
+FROM Orders o 
+INNER JOIN [Order Details] od ON od.OrderID = o.OrderID 
+INNER JOIN Products p ON p.ProductID = od.ProductID
+WHERE DATEPART(YEAR, o.OrderDate) = 1996 
+GROUP BY p.ProductName, DATEPART(YEAR, o.OrderDate)
+
+
+SELECT 
+	ROW_NUMBER () OVER(PARTITION BY DATEPART(YEAR, o.OrderDate) ORDER BY p.ProductName) AS OrderNo,  
+	p.ProductName, 
+	DATEPART(YEAR, o.OrderDate) AS Year, 
+	SUM(od.UnitPrice * od.Quantity) AS Total 
+FROM Orders o 
+INNER JOIN [Order Details] od ON od.OrderID = o.OrderID 
+INNER JOIN Products p ON p.ProductID = od.ProductID
+GROUP BY p.ProductName, DATEPART(YEAR, o.OrderDate)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
