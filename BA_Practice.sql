@@ -275,12 +275,168 @@ FROM [Order Details]
 GROUP BY OrderID 
 ORDER BY 2 DESC
 
-
 --ÖDEV
 
 --1) 'Ürün Adı', 'Ürün Fiyatı', 'Ortalama Satış Fiyatı' tablosunu oluşturunuz.
 --2) Çalışanlarım ne kadarlık satış yapmışlar? (Gelir bazında) ('Çalışanın Adı', 'Toplam Satış Tutarı' kolonlarını bekliyorum).
 --3) Ürünlere göre satışım nasıl? (Ürün-Adet-Gelir Raporu)('Ürün Sayısı', 'Ürün Adedi', 'Toplam Tutar' kolonlarını bekliyorum).
 --4) 1997 yılında en çok satış yapan çalışanımın ID,Ad soyad, Toplam Satış Tutarı tablosunu oluşturunuz.
+
+
+
+
+------------------######---24.02.2022---######----------------------------
+--Ödev 1
+
+SELECT * FROM [Order Details] od Order by ProductID
+
+SELECT 
+	p.ProductName AS [Ürünün Adı], 
+	p.UnitPrice AS [Asıl Fiyatı], 
+	ROUND(AVG(od.UnitPrice * (1 - od.Discount)),2) AS [Satış Fiyatı]  
+FROM Products p 
+LEFT JOIN [Order Details] od ON od.ProductID  = p.ProductID
+GROUP BY p.ProductName, p.UnitPrice  
+ORDER BY p.ProductName
+
+
+--INSERT INTO Products (ProductName, CategoryID) VALUES ('Deneme', 1)
+
+SELECT * FROM [Order Details] od 
+WHERE od.ProductID IN (SELECT ProductID FROM Products WHERE ProductName = 'Deneme')
+
+SELECT * FROM [Order Details] od 
+INNER JOIN Products p ON p.ProductID = od.ProductID 
+WHERE p.ProductName = 'Deneme'
+
+SELECT * FROM [Order Details] od 
+WHERE od.ProductID IN (SELECT ProductID FROM Products WHERE ProductName = 'Chai' OR ProductName = 'Chang')
+
+SELECT * FROM [Order Details] od 
+WHERE od.ProductID = CAST((SELECT ProductID FROM Products WHERE ProductName = 'Deneme') AS NUMERIC)
+
+
+-- Ödev 2
+
+SELECT 
+	e.FirstName + ' ' + e.LastName AS [Adı Soyadı],
+	ROUND(SUM(od.UnitPrice * od.Quantity * (1 - od.Discount)),2) AS [Sepet Toplamları]
+FROM Employees e 
+INNER JOIN Orders o ON o.EmployeeID = e.EmployeeID 
+INNER JOIN [Order Details] od ON o.OrderID = od.OrderID
+GROUP BY e.FirstName + ' ' + e.LastName
+ORDER BY [Adı Soyadı]
+
+
+-- Ödev 3
+
+
+SELECT 
+	p.ProductName AS Adı, 
+	SUM(od.Quantity) AS Adet, 
+	SUM(od.UnitPrice * od.Quantity * (1 - od.Discount)) AS Gelir 
+FROM Products p
+INNER JOIN [Order Details] od ON od.ProductID = p.ProductID 
+GROUP BY p.ProductName 
+ORDER BY Adet DESC
+
+
+
+-- Ödev4
+
+
+SELECT 
+	e.EmployeeID,
+	e.FirstName,
+	SUM(od.UnitPrice * od.Quantity * (1 - od.Discount)) AS Satış
+FROM [Order Details] od 
+INNER JOIN Orders o ON o.OrderID = od.OrderID 
+INNER JOIN Employees e ON o.EmployeeID = e.EmployeeID
+WHERE YEAR(o.OrderDate) = 1997 
+--WHERE DATEPART(YEAR, o.OrderDate) = 1997 
+GROUP BY e.EmployeeID, e.FirstName
+
+
+
+
+
+
+-- Müşterilerimin içinde en uzun isimli müşteri (harf sayısı) (LEN --> String Function)
+
+SELECT MAX(LEN(CompanyName)) FROM Customers
+
+
+-- Hangi kargo şirketine toplam ne kadar ödeme yapmışım? (Şirket id, name , toplam ödeme)
+
+
+SELECT 
+	s.ShipperID,
+	s.CompanyName AS [Şirket Adı],
+	SUM(o.Freight) AS [Ödenen Ücret]
+FROM Shippers s 
+INNER JOIN Orders o ON o.ShipVia = s.ShipperID 
+GROUP BY s.ShipperID, s.CompanyName 
+
+
+
+-- Ocak ayında en çok sattığım ürünün, ürün adı, kategorisi, satış tutarı (fiyat)
+
+
+SELECT TOP 1 WITH TIES
+	p.ProductName AS [Ürün Adı], 
+	c.CategoryName AS [Kategori Adı],
+	ROUND(SUM(od.UnitPrice * od.Quantity * (1 - od.Discount)),2) AS [Toplam Satış Tutarı],
+	SUM(od.Quantity) [Toplam Miktar]
+FROM Orders o
+INNER JOIN [Order Details] od ON od.OrderID = o.OrderID
+INNER JOIN Products p ON p.ProductID = od.ProductID
+INNER JOIN Categories c ON c.CategoryID = p.CategoryID
+WHERE MONTH(o.OrderDate) = 1
+GROUP BY p.ProductName, c.CategoryName
+ORDER BY [Toplam Miktar] DESC
+
+
+ --1000 Adetten fazla satılan ürünler nelerdir?
+
+SELECT 
+	p.ProductName,
+	SUM(od.Quantity) AS [Miktar]
+FROM [Order Details] od 
+INNER JOIN Products p ON p.ProductID = od.ProductID 
+GROUP BY p.ProductName
+HAVING SUM(od.Quantity) > 1000 
+
+
+ --50 den fazla satış yapan çalışanlarımı bulunuz. (çalışanın adı soyadı, satış miktarı)
+
+SELECT 
+	e.FirstName Adı,
+	COUNT(e.FirstName) AS Adet
+FROM Orders o 
+INNER JOIN Employees e ON e.EmployeeID = o.EmployeeID 
+GROUP BY e.FirstName
+HAVING COUNT(e.FirstName) > 50
+ORDER BY Adet DESC
+
+
+
+-- Fiyat Ortalamanın altında bir fiyata sahip ürünlerimin adı ve fiyatı nedir? (ipucu SUB query)
+
+
+SELECT AVG(UnitPrice) FROM Products
+
+SELECT 
+	ProductName,
+	UnitPrice
+FROM Products
+WHERE UnitPrice < (SELECT AVG(UnitPrice) FROM Products)
+ORDER BY UnitPrice 
+
+
+--Ödev
+--1) -- Ürünlerde ki Discontinued kolonundan yararlanarak Ürünleri Satışının durdurulup durdurulmadığını listeleyiniz 
+--(Duranlarda 'Durduruldu', Devam edenlerde 'Devam Ediyor' yazmalı)
+
+--2) Hangi Müşterilerim hiç sipariş vermemiş..? (JOIN kullanmadan çözünüz!)
 
 
