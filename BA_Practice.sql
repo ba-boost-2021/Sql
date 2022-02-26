@@ -440,3 +440,121 @@ ORDER BY UnitPrice
 --2) Hangi Müşterilerim hiç sipariş vermemiş..? (JOIN kullanmadan çözünüz!)
 
 
+--------------------#####---26.02.2022---#####--------------------------
+
+
+
+SELECT ProductName, Discontinued = 
+CASE
+WHEN Discontinued = 1 THEN 'Durduruldu'
+WHEN Discontinued = 0 THEN 'Devam Ediyor'
+END
+FROM Products
+
+
+
+
+SELECT * FROM Customers c
+LEFT JOIN Orders o ON c.CustomerID = o.CustomerID
+WHERE o.OrderID is null
+
+SELECT * FROM Customers c
+WHERE CustomerID NOT IN (SELECT DISTINCT o.CustomerID FROM Orders o)
+
+
+
+
+SELECT c.CategoryName + ' (' + 
+CAST((SELECT COUNT(*) FROM Products p WHERE p.CategoryID = c.CategoryID) AS nvarchar(10)) + ')' 
+FROM Categories c
+
+
+-- sipariş verilipte stoğun yetersiz olduğu ürünler hangileridir? bu ürünlerden kaç tane eksik?
+
+
+
+--Hangi siparişi hangi müşteri vermiş,
+--hangi çalışan almış,
+--hangi tarihte, hangi kargo şirketi göndermiş,
+-- hangi üründen, kaç adet alınmış, 
+--hangi fiyattan alınmış, ürün hangi kategorideymiş
+-- OrderId göre sıralayınız.
+
+
+
+
+
+SELECT * FROM Orders o
+INNER JOIN [Order Details] od ON od.OrderID = o.OrderID
+INNER JOIN Products p ON p.ProductID = od.ProductID
+INNER JOIN Customers c ON o.CustomerID = c.CustomerID
+INNER JOIN Employees e ON e.EmployeeID = o.EmployeeID
+INNER JOIN Categories c2 ON c2.CategoryID = p.CategoryID
+INNER JOIN Shippers s ON s.ShipperID = o.ShipVia
+INNER JOIN Suppliers s2 ON s2.SupplierID = p.SupplierID
+
+
+
+--CocaCola adında ürün ekleyin(Ürünün bağımlılıklarını var olan verileri kullanarak oluşturun)
+
+DECLARE @Id INT
+SET @Id = CAST((SELECT CategoryID FROM Categories WHERE CategoryName = 'Beverages') AS INT)
+INSERT INTO Products (ProductName,SupplierID, CategoryID, UnitPrice) 
+VALUES ('CocaCola', 1, @Id, 50)
+
+select * from Products
+--Delete from Products where ProductName = 'CocaCola'
+
+
+UPDATE Products SET UnitPrice = 90 WHERE ProductID IN 
+(SELECT ProductID FROM Products WHERE ProductName = 'CocaCola')
+
+
+
+--Bu üründen bir sipariş oluşturun (Detail ile birlikte)
+
+
+--Bu ürünü silin
+
+INSERT INTO Orders (CustomerID, EmployeeID, OrderDate, RequiredDate, ShipVia)
+VALUES ('ALFKI',1,GETDATE(),DATEADD(DAY, 5, GETDATE()), 1)
+
+SELECT * FROM Orders WHERE YEAR(OrderDate) = 2022
+
+INSERT INTO [Order Details] VALUES
+(11080, (SELECT TOP 1 ProductID FROM Products WHERE ProductName = 'CocaCola'), 20, 50, 0)
+
+SELECT * FROM [Order Details] od
+INNER JOIN Orders o ON o.OrderID = od.OrderID
+WHERE YEAR(o.OrderDate) = 2022
+
+
+DELETE FROM Orders WHERE OrderID = 11080
+DELETE FROM [Order Details] WHERE OrderID = 11080
+DELETE FROM [Order Details] WHERE OrderID = 10950
+DELETE FROM Products WHERE ProductName = 'CocaCola'
+
+
+SELECT * FROM [Order Details] od 
+INNER JOIN Products p ON p.ProductID = od.ProductID
+WHERE p.ProductName = 'CocaCola'
+SELECT * FROM Products
+
+
+
+--Fax numarası boş olan müşterilerin, fax numarası yerine telefon numaralarını yazınız.
+
+SELECT * FROM Customers
+
+UPDATE Customers 
+SET Fax = Phone WHERE Fax IS NULL
+
+
+-- fiyatı ortalamaının altında kalan ürünlere %5 zam uygulayınız.
+UPDATE Products 
+SET UnitPrice = UnitPrice * (1.05) 
+WHERE UnitPrice < (SELECT AVG(UnitPrice) FROM Products) 
+
+
+
+
