@@ -19,6 +19,8 @@ SELECT 2
 SELECT 3 * (3 + 4) AS Result
 SELECT 1.0 * 23 / 5
 
+--UNION kullanımında tüm sorgu çıktılarındaki kolon sayıları ve sıralı veri türleri aynı olmalı
+--UNION DISTICT ederek çıktı üretir: DISTINCT bakınız: aşağıdaki örnekler
 
 SELECT 'Can' AS 'FirstName', 'PERK' AS 'LastName', 33 AS 'Age'
 UNION
@@ -31,6 +33,11 @@ UNION
 SELECT 'Esengül', 'ÖZKUL', 25
 UNION
 SELECT 'Berk', 'ÖZERDOĞAN', 25
+UNION ALL
+SELECT 'Berk', 'ÖZERDOĞAN', 25
+UNION ALL
+SELECT 'Esengül', 'ÖZKUL', 25
+--UNION ALL DISTINC özelliği sonraki tablo için kapatır
 
 DROP DATABASE Northwind 
 RESTORE DATABASE Northwind FROM DISK = N'/home/Northwind.bak' WITH MOVE 'Northwind' TO '/var/opt/mssql/data/Northwind.mdf', MOVE 'Northwind_Log' TO '/var/opt/mssql/data/Northwind_Log.ldf', REPLACE
@@ -144,13 +151,13 @@ INNER JOIN Customers c ON c.CustomerID = o.CustomerID
 GROUP BY c.CustomerID 
 ORDER BY [Order Count] DESC --8 kayıt döner çünkü 6. satıra ait veriye eşit başka 2 satır daha var
 
------------       -----------  
-ALFKI | 6         BOTTM | 9         
-ANATR | 4         BERGS | 8         
-ANTON | 3         ALFKI | 6         
-...               ...
-...               ...
-BOTTM | 9         ANTON | 3
+-------------       -----------  
+--ALFKI | 6         BOTTM | 9         
+--ANATR | 4         BERGS | 8         
+--ANTON | 3         ALFKI | 6         
+--...               ...
+--...               ...
+--BOTTM | 9         ANTON | 3
 
 SELECT TOP 3 c.CustomerID, c.ContactName, c.Phone, COUNT(0) AS [Order Count]
 FROM Orders o 
@@ -409,20 +416,125 @@ INNER JOIN [Order Details] od ON od.OrderID = o.OrderID
 INNER JOIN Products p ON p.ProductID = od.ProductID
 GROUP BY p.ProductName, DATEPART(YEAR, o.OrderDate)
 
+--CRUD : Create, Read, Update, Delete
+--CREATE : Oluşturma -> SQL => INSERT
+
+INSERT INTO Categories (CategoryName, Description) VALUES ('Electronics', 'Devices that are works with electricty')
+INSERT INTO Categories (CategoryName, Description) VALUES ('Furniture', 'Wooden stuffs')
+
+SELECT TOP 5 * FROM Suppliers ORDER BY SupplierID DESC
+SELECT TOP 5 * FROM Categories ORDER BY CategoryID DESC
+
+SELECT c.CategoryName, COUNT(0) AS Count FROM Products p
+INNER JOIN Categories c ON p.CategoryID = c.CategoryID
+GROUP BY CategoryName
+ORDER BY Count
+
+SELECT p.ProductName, p.UnitPrice, s.CompanyName, s.Phone FROM Products p
+LEFT JOIN Suppliers s ON p.SupplierID = s.SupplierID 
+
+INSERT INTO Products (ProductName, CategoryID, UnitPrice, UnitsInStock)
+VALUES ('Trust Microphone', 9, 110, 24)
+
+INSERT INTO Products (ProductName, CategoryID, UnitPrice, UnitsInStock)
+VALUES ('EPSON Projector', 9, 820, 9)
+
+INSERT INTO Products (ProductName, CategoryID, SupplierID, UnitPrice, UnitsInStock)
+VALUES ('LINGO Chair', 10, 30, 340, 120)
+
+INSERT INTO Suppliers (CompanyName, ContactName, City, Country, Phone)
+VALUES ('Perktronics Ltd.', 'Can Perk', 'Ankara', 'Turkey', '+90 555 444 55 55')
+
+SELECT * FROM Products WHERE CategoryID IN (9, 10)
+------
+-- UPDATE
+UPDATE Products SET SupplierID = 31 WHERE ProductID = 78
+UPDATE Products SET SupplierID = 30 WHERE ProductID = 79
+
+UPDATE Products SET SupplierID = 30 WHERE SupplierID = 31
+
+DELETE FROM Suppliers WHERE SupplierID = 31
+-- ÖNEMLİ !!!!
+-- DELETE ve UPDATE sorgularında, kesinkes WHERE kullanılmalıdır!!!!!
+-- Aksi halde geri dönülmez veri kayıpları yaşanabilir
+
+-- NO NO NO NO !!!!
+--UPDATE Products SET UnitPrice = 5 
+--DELETE FROM [Order Details]
+--DELETE FROM Products
+--USE master
+--DROP DATABASE Northwind
+
+SELECT * FROM Employees
 
 
+UPDATE Employees SET BirthDate = DATEADD(YEAR, 30, BirthDate), 
+					 HireDate = DATEADD(YEAR, 30, HireDate)
 
+UPDATE Employees SET BirthDate = DATEADD(YEAR, 5, BirthDate), 
+					 HireDate = DATEADD(YEAR, 5, HireDate)
 
+UPDATE Employees SET HireDate = DATEADD(YEAR, -1, HireDate)
 
+SELECT * FROM Employees
+SELECT TOP 20 * FROM Orders
 
+SELECT OrderDate, ShippedDate
+FROM Orders
+WHERE EmployeeID = 9
+--KISS
+UPDATE Orders SET OrderDate = DATEADD(YEAR, 25, OrderDate),
+				  ShippedDate = DATEADD(YEAR, 25, ShippedDate),
+				  RequiredDate = DATEADD(YEAR, 25, ShippedDate)
 
+UPDATE Orders SET OrderDate = DATEADD(YEAR, -2, OrderDate),
+				  ShippedDate = DATEADD(YEAR, -2, ShippedDate)
 
+DECLARE @CID char(5)
+SET @CID = 'ERNSH'
+INSERT INTO Orders (CustomerID, EmployeeID, OrderDate, ShipCity, ShipCountry)
+VALUES (@CID, 
+		9, 
+		GETDATE(), 
+		(SELECT City FROM Customers WHERE CustomerID = @CID), 
+		(SELECT Country FROM Customers WHERE CustomerID = @CID))
 
+SELECT TOP 1 * FROM Orders ORDER BY OrderID DESC
 
+INSERT INTO [Order Details]
+VALUES (11078, 78, 110, 1, 0),
+	   (11078, 79, 803.6, 1, 0.02),
+	   (11078, 80, 340, 2, 0),
+	   (11078, 62, 49.3, 6, 0),
+	   (11078, 76, 18, 1, 0)
 
+SELECT p.ProductName, ROUND(SUM(od.Quantity * od.UnitPrice * (1 - od.Discount)), 2) AS Summary 
+FROM [Order Details] od
+INNER JOIN Products p ON p.ProductID = od.ProductID
+WHERE od.OrderID = 11078
+GROUP BY p.ProductName
 
+UPDATE [Order Details] SET UnitPrice = 820 WHERE OrderID = 11078 AND ProductID = 79
 
+SELECT 
+	CONCAT(FORMAT(o.OrderDate, 'yyMMdd'), o.OrderID) AS [Invoice Number],
+	ROUND(SUM(od.Quantity * od.UnitPrice * (1 - od.Discount)), 2) AS [Summary]
+FROM Orders o
+INNER JOIN [Order Details] od ON od.OrderID = o.OrderID
+WHERE o.CustomerID = 'ERNSH'
+GROUP BY CONCAT(FORMAT(o.OrderDate, 'yyMMdd'), o.OrderID)
+ORDER BY [Invoice Number] DESC
 
+SELECT * FROM Products
+ORDER BY ProductID
+OFFSET 10 ROWS
+FETCH NEXT 10 ROWS ONLY
 
+SELECT ContactName, Phone, 'C' AS Type
+INTO Contacts --!!! BAKIN BURASI ÇOK ÖNEMLİ :D
+FROM Customers
+UNION
+SELECT FirstName + ' ' + LastName, HomePhone, 'E'
+FROM Employees
 
-
+SELECT * FROM Contacts WHERE Type = 'E'
