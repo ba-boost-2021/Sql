@@ -416,6 +416,7 @@ INNER JOIN [Order Details] od ON od.OrderID = o.OrderID
 INNER JOIN Products p ON p.ProductID = od.ProductID
 GROUP BY p.ProductName, DATEPART(YEAR, o.OrderDate)
 
+-- GÜN 3
 --CRUD : Create, Read, Update, Delete
 --CREATE : Oluşturma -> SQL => INSERT
 
@@ -443,7 +444,7 @@ INSERT INTO Products (ProductName, CategoryID, SupplierID, UnitPrice, UnitsInSto
 VALUES ('LINGO Chair', 10, 30, 340, 120)
 
 INSERT INTO Suppliers (CompanyName, ContactName, City, Country, Phone)
-VALUES ('Perktronics Ltd.', 'Can Perk', 'Ankara', 'Turkey', '+90 555 444 55 55')
+VALUES ('Sil', 'Can Perk', 'Ankara', 'Turkey', '+90 555 444 55 55')
 
 SELECT * FROM Products WHERE CategoryID IN (9, 10)
 ------
@@ -538,3 +539,120 @@ SELECT FirstName + ' ' + LastName, HomePhone, 'E'
 FROM Employees
 
 SELECT * FROM Contacts WHERE Type = 'E'
+
+--GÜN 4
+-- DDL : Data Definition Language
+-- CREATE, DROP, ALTER
+--VIEW
+
+--Tablolardan getirilecek veriyi çalıştırdığımız sorguya verdiğimiz bir isimdir.
+--Güvenlik vb amaçlı kullanılabilir
+SELECT * FROM [Alphabetical list of products]
+ORDER BY ProductName
+
+SELECT * FROM [Invoices]
+GO
+CREATE VIEW Contacts
+--WITH SCHEMABINDING --: sorguda şema belirtmek zorunlu
+AS
+SELECT ContactName, Phone, 'C' AS Type
+FROM dbo.Customers WHERE Phone IS NOT NULL
+UNION
+SELECT FirstName + ' ' + LastName, HomePhone, 'E'
+FROM dbo.Employees
+
+GO
+
+DROP VIEW Contacts
+GO
+CREATE VIEW AmericanEmployees
+AS 
+SELECT * FROM Employees WHERE Country = 'USA'
+GO
+SELECT * FROM Contacts
+GO
+CREATE SCHEMA Reporting
+GO
+--CONSTRAINTS
+--  > NOT NULL		: boş geçemez
+--  > NULL			: boş geçebilir (yazmak zorunda değiliz)
+--  > PRIMARY KEY   : satırdaki unique olma özelliğini getirir
+--  > FOREIGN KEY	: bir kolonun esas verisini başka bir kolondan alma ilişkisidir
+--  > DEFAULT		: kolona insert anında bir değer verilmez ise atanacak değer
+--  > IDENTITY		: sayılar veri içeren bir kolonun değerini kendisini belirlemesidir ve devam ettirmesidir
+CREATE TABLE Reporting.Notes
+(
+	NoteID INT NOT NULL PRIMARY KEY IDENTITY(1,1),
+	EmployeeID INT NOT NULL,
+	Content varchar(256) NOT NULL,
+	CustomerID nchar(5) NULL,
+	CreatedAt DATETIME NULL DEFAULT(GETDATE()),
+
+	CONSTRAINT FK_Notes_Employees FOREIGN KEY (EmployeeID) REFERENCES dbo.Employees(EmployeeID),
+	CONSTRAINT FK_Notes_Customers FOREIGN KEY (CustomerID) REFERENCES dbo.Customers(CustomerID)
+)
+
+SELECT * FROM Reporting.Notes
+--IDENTITY TANIMLI DEĞİLKEN
+INSERT INTO Reporting.Notes (NoteID, EmployeeID, Content) VALUES (1, 9, 'Çıkmadan lambaları kapat')
+INSERT INTO Reporting.Notes (NoteID, EmployeeID, Content) VALUES (2, 5, 'Raporları mail at')
+--IDENTITY TANIMLI İKEN
+INSERT INTO Reporting.Notes (EmployeeID, Content) VALUES (9, 'Çıkmadan lambaları kapat')
+INSERT INTO Reporting.Notes (EmployeeID, Content) VALUES (5, 'Raporları mail at')
+INSERT INTO Reporting.Notes (EmployeeID, CustomerID, Content) VALUES (4, 'BERGS', 'Olmayan veriler')
+DROP TABLE Reporting.Notes
+/*
+varchar, nvarchar, char, nchar, text
+tinyint, int, bigint
+*/
+
+--INSERT INTO Contacts VALUES ('Can PERK', '233445', 'C')
+
+SELECT CONCAT(e.FirstName, ' ', e.LastName) AS Employee, c.ContactName, n.Content 
+FROM Reporting.Notes n
+INNER JOIN Employees e ON e.EmployeeID = n.EmployeeID
+LEFT JOIN Customers c ON c.CustomerID = n.CustomerID
+
+SELECT 
+	CONCAT(e.FirstName, ' ', e.LastName) AS Employee,
+	CONCAT(m.FirstName, ' ', m.LastName) AS Manager
+FROM Employees e
+LEFT JOIN Employees m ON e.ReportsTo = m.EmployeeID
+
+SELECT * FROM Reporting.Notes
+--ALTER
+GO
+ALTER TABLE Reporting.Notes
+ADD NotificationDate DATETIME NULL
+
+ALTER TABLE Reporting.Notes
+ADD Title varchar(24) NULL
+
+UPDATE Reporting.Notes SET Title = 'Başlık Yok'
+
+ALTER TABLE Reporting.Notes
+ALTER COLUMN Title varchar(24) NOT NULL
+
+INSERT INTO Reporting.Notes (EmployeeID, Title, Content, NotificationDate) 
+VALUES (2, 'Su', 'Su içme zamanı', DATEADD(MINUTE, 15, GETDATE()))
+
+ALTER TABLE Reporting.Notes
+ADD DeleteMe INT DEFAULT(0)
+GO
+ALTER TABLE Reporting.Notes
+DROP CONSTRAINT DF__Notes__DeleteMe__04E4BC85
+
+ALTER TABLE Reporting.Notes
+DROP COLUMN DeleteMe
+---V2
+ALTER TABLE Reporting.Notes
+ADD DeleteMe INT
+
+ALTER TABLE Reporting.Notes
+ADD CONSTRAINT DF_DeleteMe DEFAULT 0 FOR DeleteMe
+
+ALTER TABLE Reporting.Notes
+DROP CONSTRAINT DF_DeleteMe
+
+ALTER TABLE Reporting.Notes
+DROP COLUMN DeleteMe
