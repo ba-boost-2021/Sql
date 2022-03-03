@@ -558,3 +558,167 @@ WHERE UnitPrice < (SELECT AVG(UnitPrice) FROM Products)
 
 
 
+--------------------------- #### ------ 03.03.2022 ------ ####--------------------
+
+
+
+--Şimdi,
+
+--Kendi belirlediğiniz 3 ürünü ve bütün bağımlılıklarını, yeni olmak şartıyla oluşturunuz.
+
+--bu üründen (her biri için en az bir tane) olmak şartıyla bazı siparişler ve detaylarını oluşturunuz.
+
+
+--En son bu yeni oluşturduğumuz ürünlerle ilgili bütün detayları listeleyeniz.
+
+
+
+--indirim uygulanmamış bütün siparişlere ortalama indirim kadar indirim uygulayın.
+
+
+
+
+UPDATE [Order Details] SET Discount = (SELECT AVG(Discount) FROM [Order Details] od WHERE Discount != 0) WHERE Discount = 0
+
+DECLARE @avg real
+SET @avg = CAST((SELECT AVG(Discount) FROM [Order Details] od WHERE Discount != 0) AS real)
+UPDATE [Order Details] SET Discount = @avg WHERE Discount = 0
+
+
+SELECT Discount FROM [Order Details] od
+
+
+
+--En çok satılan 5 ürüne yüzde 10 zam uygulayın.
+
+--satışı devam etmeyen ürünleri satışa sokun.
+SELECT * FROM [Order Details] od 
+
+WITH topproducts AS (SELECT TOP 5 od.ProductID FROM [Order Details] od --CTE(Common Table Expression)
+GROUP BY od.ProductID 
+ORDER BY SUM(od.Quantity) DESC)
+
+UPDATE Products SET UnitPrice = 1.1*UnitPrice
+WHERE ProductID IN (SELECT * FROM topproducts) 
+
+
+
+-- Almanyada olan müşterilerimizi ayrı bir tabloya alın. (Select Into, CustomersGermany)
+
+SELECT * INTO CustomersGermany 
+FROM Customers c 
+WHERE c.Country = 'Germany'
+
+SELECT * FROM CustomersGermany cg 
+
+-- ProductId, ProductName, UnitPrice, CategoryName tablosunu ayrı bir tablo olarak oluşturun. (ProductCategories)
+
+
+SELECT p.ProductID, p.ProductName, p.UnitPrice, c.CategoryName INTO ProductCategories
+FROM Products p 
+INNER JOIN Categories c ON c.CategoryID = p.CategoryID 
+
+SELECT * FROM ProductCategories 
+
+
+
+/*
+ * Okul Kütüphanesi Veri tabanı tasarımı
+
+Tablolar ve columnleri
+
+Students (No, FirstName, LastName, Gender, BirthDate, Grade) (No bizim gireceğimiz bir identity)
+
+Books (Id, TransactionId, Name, AuthorId, TypeId, PageCount, Available)
+
+Authors (Id, FirstName, LastName)
+
+Types (Id, Name)
+
+Transactions (Id, StudentId, BookId, BorrowingDate, ReturnDate)
+
+ilgili entity ve columnleri uygun veri tipleri ve constraintsleri kullanarak inşa ediniz. (ilişkileri oluşturunuz)*/
+
+
+-- her tabloda en az 3 veri olacak şekilde Seed datalarını giriniz.
+
+ALTER TABLE Books
+ADD CONSTRAINT FK_BooksTypes FOREIGN KEY (TypeId) REFERENCES Types(Id)
+
+CREATE TABLE Books(
+ Id int NOT NULL PRIMARY KEY IDENTITY(1,1)
+ TypeId int NULL FOREIGN KEY REFERENCES Types(Id)
+)
+
+CREATE TABLE Books(
+ Id int NOT NULL PRIMARY KEY IDENTITY(1,1)
+ TypeId int NULL 
+ 
+ CONSTRAINT FK_BooksTypes FOREIGN KEY (TypeId) REFERENCES Types(Id) 
+)
+
+
+
+
+
+
+
+
+--cevap
+
+CREATE DATABASE LibraryManagement
+USE LibraryManagement
+CREATE TABLE Students
+(
+	StudentNo INT NOT NULL PRIMARY KEY,
+	FirstName nvarchar(64) NOT NULL,
+	LastName nvarchar(64) NOT NULL,
+	Gender nvarchar(6) NULL DEFAULT('Empty'),
+	BirthDate DATETIME NULL,
+	Grade INT NOT NULL
+)
+---------------------------------------------
+
+CREATE TABLE Books 
+(
+	Id INT NOT NULL PRIMARY KEY IDENTITY(1,1),
+	Name nvarchar(256) NOT NULL,
+	AuthorId INT NOT NULL,
+	TypeId INT NOT NULL,
+	PageCount INT NOT NULL,
+	Available BIT NOT NULL,
+	
+	CONSTRAINT FK_BooksAuthors FOREIGN KEY (AuthorId) REFERENCES Authors(Id),
+	CONSTRAINT FK_BooksTypes FOREIGN KEY (TypeId) REFERENCES Types(Id)
+)
+
+---------------------------------------------
+
+CREATE TABLE Authors  
+(
+	Id INT NOT NULL PRIMARY KEY IDENTITY(1,1),
+	FirstName nvarchar(64) NOT NULL,
+	LastName nvarchar(64) NOT NULL
+)
+
+----------------------------------------------------
+
+CREATE TABLE Types  
+(
+	Id INT NOT NULL PRIMARY KEY IDENTITY(1,1),
+	Name varchar(128) NOT NULL
+)
+
+-------------------------------------------------------
+CREATE TABLE Transactions  
+(
+	Id INT NOT NULL PRIMARY KEY IDENTITY(1,1),
+	StudentId INT NOT NULL,
+	BookId INT NOT NULL,
+	BorrowingDate DATETIME NOT NULL,
+	ReturnDate DATETIME NOT NULL,
+	
+	CONSTRAINT FK_TransactionsStudents FOREIGN KEY (StudentId) REFERENCES Students(StudentNo),
+	CONSTRAINT FK_TransactionsBooks FOREIGN KEY (BookId) REFERENCES Books(Id)
+)
+
