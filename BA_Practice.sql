@@ -710,6 +710,7 @@ CREATE TABLE Types
 )
 
 -------------------------------------------------------
+
 CREATE TABLE Transactions  
 (
 	Id INT NOT NULL PRIMARY KEY IDENTITY(1,1),
@@ -722,3 +723,139 @@ CREATE TABLE Transactions
 	CONSTRAINT FK_TransactionsBooks FOREIGN KEY (BookId) REFERENCES Books(Id)
 )
 
+
+----------------#######------04.03.2022-----######---------------------
+
+
+
+/*
+1. Her öğrencinin okuduğu kitap sayısını bulunuz.
+2. En çok okunan kitabı bulunuz.
+3. Her öğrencinin okuduğu kitap sayısını listeleyin. Ama kitap okumayanların yanında “0” yazsın.
+4. Hiç kitap almayan öğrencileri listeleyiniz.
+5. Kitap alıp teslim etmeyen öğrencileri listeleyin.
+6. Her sınıfta kaç öğrenci olduğunu bulunuz.
+ * */
+
+
+INSERT INTO Students 
+VALUES  (10011, 'Ahmet', 'Demir', 'Erkek', DATEADD(YEAR,-23,GETDATE()), 2),
+		(10012, 'Mehmet', 'Çelik', 'Erkek', DATEADD(YEAR,-22,GETDATE()), 2),
+		(10013, 'Metehan', 'Çam', 'Erkek', DATEADD(YEAR,-12,GETDATE()), 2),
+		(10014, 'Esengül', 'Özkul', 'Kadın', DATEADD(YEAR,-15,GETDATE()), 2),
+		(10015, 'Kadir', 'Üst', 'Erkek', DATEADD(YEAR,-30,GETDATE()), 2)
+		
+INSERT INTO Authors 
+VALUES 
+		('Author1', 'A1'),
+		('Author2', 'A2'),
+		('Author3', 'A3'),
+		('Author4', 'A4'),
+		('Author5', 'A5')
+		
+INSERT INTO Types 
+VALUES 
+		('Type1'),
+		('Type2'),
+		('Type3'),
+		('Type4')
+		
+INSERT INTO Books
+VALUES ('Kitap 1',1,1,120,1),
+	('Kitap 2',1,1,220,1),
+	('Kitap 3',1,1,150,1),
+	('Kitap 4',1,1,225,1),
+	('Kitap 5',1,1,280,1)
+	
+	
+INSERT INTO Transactions 
+VALUES ( 2, DATEADD(DAY, -15, GETDATE()), DATEADD(DAY, -10, GETDATE()), 10011),
+		(10011, 3, DATEADD(DAY, -18, GETDATE()), DATEADD(DAY, -10, GETDATE())),
+		(10011, 1, DATEADD(DAY, -25, GETDATE()), DATEADD(DAY, -14, GETDATE())),
+		(10012, 2, DATEADD(DAY, -16, GETDATE()), DATEADD(DAY, -12, GETDATE())),
+		(10013, 4, DATEADD(DAY, -28, GETDATE()), NULL),
+		(10014, 5, DATEADD(DAY, -15, GETDATE()), NULL),
+		(10014, 2, DATEADD(DAY, -19, GETDATE()), NULL),
+		(10014, 2, DATEADD(DAY, -15, GETDATE()), DATEADD(DAY, -12, GETDATE()))
+
+
+SELECT * FROM Transactions t  
+
+
+--ALTER TABLE Transactions  
+--ALTER COLUMN ReturnDate DATETIME NULL
+
+
+--Hangi kitap için kaç işlem yapılmış olduğunu veren view’i oluşturunuz.
+--BookId, BookName, TransactionCount
+
+CREATE VIEW vw_Report AS 
+SELECT b.Id BookId, b.Name BookName, COUNT(t.Id) AS TransactionCount FROM Books b
+INNER JOIN Transactions t ON t.BookId = b.Id
+GROUP BY b.Id,b.Name
+
+
+--AuthorDetails tablosu oluşturunuz. 
+--ve Author tablosu ile ilişki kuracak şekilde gerekli işlemleri yapınız.
+
+CREATE TABLE AuthorDetails(
+	Id INT NOT NULL PRIMARY KEY IDENTITY(1,1),
+	AuthorId INT FOREIGN KEY REFERENCES Authors(Id),
+	Country nvarchar(50) NULL
+)
+
+-- Employees tablosu oluşturunuz.(Id,FirstName,LastName,Phone) Ve Transactions tablosuna 
+-- CreatedAt, CreatedBy (NOT NULL) kolonlarını ekleyip gerekli ilişkileri kurunuz. 
+-- (Bu süreci test etmek için dummy datalar oluşturup join sorgusu yazınız.)
+
+CREATE TABLE Employees(
+	Id INT NOT NULL PRIMARY KEY IDENTITY(1,1),
+	FirstName nvarchar(64) NOT NULL,
+	LastName nvarchar(64) NOT NULL,
+	Phone nvarchar(20) NULL 
+)
+
+ALTER TABLE Transactions 
+ADD CreatedAt datetime NOT NULL DEFAULT(GETDATE())
+
+ALTER TABLE Transactions
+ADD CreatedBy INT NULL FOREIGN KEY REFERENCES Employees (Id)
+
+INSERT INTO Employees VALUES ('Deneme', 'DEneme', NULL) 
+
+UPDATE Transactions SET CreatedBy = 1
+
+ALTER TABLE Transactions 
+ALTER COLUMN CreatedBy INT NOT NULL
+
+
+
+--Students tablosundaki StudentNo kolonunun adı StudentId olarak değiştirilecektir. 
+--Gerekli işlemleri yapınız.
+ALTER TABLE Students
+DROP COLUMN StudentNo 
+
+ALTER TABLE Students 
+DROP PK__Students__32C4C02AE642D558
+
+ALTER TABLE Transactions 
+DROP FK_TransactionsStudents
+
+ALTER TABLE Students 
+ADD StudentId INT NOT NULL PRIMARY KEY
+
+ALTER TABLE Transactions 
+ADD CONSTRAINT FK_TransactionsStudents FOREIGN KEY (StudentId) REFERENCES Students(StudentId) 
+
+TRUNCATE TABLE Students 
+
+/* Ödev -- 
+Bu veritabanında en çok sorgu, Student tablosunda firstName ile,
+
+Books tablosunda AuthorId ile,
+
+Author tablosunda ise Name ile yapılmaktadır.
+
+Gerekli indexleri oluşturunuz.
+
+*/
