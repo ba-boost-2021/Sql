@@ -41,6 +41,7 @@ SELECT 'Esengül', 'ÖZKUL', 25
 
 DROP DATABASE Northwind 
 RESTORE DATABASE Northwind FROM DISK = N'/home/Northwind.bak' WITH MOVE 'Northwind' TO '/var/opt/mssql/data/Northwind.mdf', MOVE 'Northwind_Log' TO '/var/opt/mssql/data/Northwind_Log.ldf', REPLACE
+RESTORE DATABASE AdventureWorks FROM DISK = N'/var/opt/mssql/data/AW2019Latest.bak' WITH MOVE 'AdventureWorks' TO '/var/opt/mssql/data/AdventureWorks.mdf', MOVE 'AdventureWorks_Log' TO '/var/opt/mssql/data/AdventureWorks_Log.ldf', REPLACE
 ----- MİLAT
 --RDBMS -> Relational DataBase Management Service
 --DML : Data Manipulation Language
@@ -656,3 +657,141 @@ DROP CONSTRAINT DF_DeleteMe
 
 ALTER TABLE Reporting.Notes
 DROP COLUMN DeleteMe
+
+
+--GÜN 5
+--Normalizasyon Kuralları
+--INDEXLEME
+
+SELECT * FROM [Order Details] od 
+WHERE OrderID = 10282
+
+SELECT * FROM [Order Details] od 
+WHERE UnitPrice > 10
+
+SET STATISTICS TIME OFF
+SET STATISTICS IO OFF
+
+CREATE NONCLUSTERED INDEX IX_UnitPrice
+ON [Order Details] (UnitPrice)
+
+CREATE NONCLUSTERED INDEX IX_UnitPrice
+ON [Products] (UnitPrice)
+
+DROP INDEX IX_UnitPrice ON [Order Details]
+DROP INDEX IX_UnitPrice ON [Products]
+
+USE AdventureWorks
+
+
+SELECT * FROM HumanResources.Employee e 
+
+RESTORE DATABASE AdventureWorks FROM DISK = '/home/Can.bak' WITH REPLACE
+
+USE AdventureWorks 
+SELECT * FROM Production.Product p 
+SELECT * FROM Person.Person p WHERE p.Suffix IS NOT NULL
+
+CREATE NONCLUSTERED INDEX IX_Person_Suffix ON Person.Person (Suffix)
+
+DROP INDEX IX_Person_Suffix ON Person.Person
+
+SELECT @@SPID
+
+
+-- CTE : Common Table Expression
+SELECT p.ProductNumber, p.Name, p.ListPrice, s.Name AS [SubCategory] , c.Name AS [Category] 
+FROM Production.Product p
+INNER JOIN Production.ProductSubcategory s ON p.ProductSubcategoryID = s.ProductSubcategoryID 
+INNER JOIN Production.ProductCategory c ON c.ProductCategoryID = s.ProductCategoryID 
+WHERE c.ProductCategoryID = 1
+
+WITH CTE AS
+(
+	SELECT s.ProductSubcategoryID AS [Id], c.Name AS [Category], s.Name AS [SubCategory] 
+	FROM Production.ProductCategory c
+	INNER JOIN Production.ProductSubcategory s ON c.ProductCategoryID = s.ProductCategoryID 
+	WHERE c.ProductCategoryID = 1
+)
+
+SELECT p.ProductNumber, p.Name, p.ListPrice, c.Category , c.SubCategory
+FROM Production.Product p
+INNER JOIN CTE c ON c.Id = p.ProductSubcategoryID
+
+CREATE VIEW Production.vProductSummary
+AS
+(
+	SELECT p.ProductNumber, p.Name, p.ListPrice--, c.Category , c.SubCategory
+	FROM Production.Product p
+)
+
+SELECT * FROM Production.mvProductSummary
+
+--CREATE MATERIALIZED VIEW Production.mvProductSummary -- Yobaz SQL Server desteklemiyor :D 
+--AS
+--(
+--  	SELECT p.ProductNumber, p.Name, p.ListPrice--, c.Category , c.SubCategory
+--	    FROM Production.Product p
+--)
+
+--DIRTY DATA
+
+SELECT * FROM Person.Person p WHERE p.BusinessEntityID = 19
+SELECT * FROM HumanResources.EmployeePayHistory h WHERE h.BusinessEntityID = 16
+SELECT h.BusinessEntityID, COUNT(0)  FROM HumanResources.EmployeePayHistory h
+GROUP BY h.BusinessEntityID 
+ORDER BY 2 DESC
+
+--v1
+SELECT CONCAT(prs.FirstName, ' ', prs.LastName) AS SalesPerson, p.Name, SUM(od.OrderQty * od.UnitPrice) AS Summary 
+FROM Sales.SalesOrderDetail od
+INNER JOIN Production.Product p ON od.ProductID = p.ProductID 
+INNER JOIN Production.ProductSubcategory s ON s.ProductSubcategoryID = p.ProductSubcategoryID 
+INNER JOIN Sales.SalesOrderHeader h ON h.SalesOrderID = od.SalesOrderID 
+INNER JOIN Person.Person prs ON prs.BusinessEntityID = h.SalesPersonID 
+WHERE s.ProductSubcategoryID = 1
+GROUP BY p.Name, CONCAT(prs.FirstName, ' ', prs.LastName)
+HAVING SUM(od.OrderQty * od.UnitPrice) > 10000
+
+--v2
+;WITH CTEProducts AS
+(
+	SELECT p.Name, p.ProductID FROM Production.Product p WHERE p.ProductSubcategoryID = 1
+),
+CTEOrders AS 
+(
+	SELECT h.SalesPersonID, od.ProductID, SUM(od.OrderQty * od.UnitPrice) AS Summary FROM Sales.SalesOrderDetail od
+	INNER JOIN Sales.SalesOrderHeader h ON h.SalesOrderID  = od.SalesOrderID 
+	WHERE h.SalesPersonID IS NOT NULL
+	GROUP BY h.SalesPersonID, od.ProductID 
+	HAVING SUM(od.OrderQty * od.UnitPrice) > 10000
+)
+
+SELECT CONCAT(prs.FirstName, ' ', prs.LastName) AS SalesPerson,
+	   p.Name,
+	   o.Summary
+FROM Person.Person prs
+INNER JOIN CTEOrders o ON o.SalesPersonID = prs.BusinessEntityID  
+INNER JOIN CTEProducts p ON p.ProductID = o.ProductID
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
