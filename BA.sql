@@ -417,7 +417,7 @@ INNER JOIN [Order Details] od ON od.OrderID = o.OrderID
 INNER JOIN Products p ON p.ProductID = od.ProductID
 GROUP BY p.ProductName, DATEPART(YEAR, o.OrderDate)
 
--- GÜN 3
+-- GÜN 4
 --CRUD : Create, Read, Update, Delete
 --CREATE : Oluşturma -> SQL => INSERT
 
@@ -541,7 +541,7 @@ FROM Employees
 
 SELECT * FROM Contacts WHERE Type = 'E'
 
---GÜN 4
+--GÜN 5
 -- DDL : Data Definition Language
 -- CREATE, DROP, ALTER
 --VIEW
@@ -659,7 +659,7 @@ ALTER TABLE Reporting.Notes
 DROP COLUMN DeleteMe
 
 
---GÜN 5
+--GÜN 6
 --Normalizasyon Kuralları
 --INDEXLEME
 
@@ -774,21 +774,171 @@ FROM Person.Person prs
 INNER JOIN CTEOrders o ON o.SalesPersonID = prs.BusinessEntityID  
 INNER JOIN CTEProducts p ON p.ProductID = o.ProductID
 
+-- GÜN 7 
+
+SELECT DATEPART(YEAR, GETDATE())
+--SCALAR FUNCTIONS
+CREATE OR ALTER FUNCTION GetTotalSummary() RETURNS MONEY
+AS BEGIN
+	RETURN (SELECT SUM(UnitPrice * Quantity) FROM [Order Details])
+END;
+
+CREATE OR ALTER FUNCTION GetSalesYearCount() RETURNS INT
+AS BEGIN
+	DECLARE @result INT;
+	;WITH CTEYear 
+	AS 
+	(
+		SELECT 
+			ROW_NUMBER() OVER (PARTITION BY DATEPART(YEAR, OrderDate) ORDER BY OrderDate) AS Row, 
+			DATEPART(YEAR,o.OrderDate) AS Year
+		FROM Orders o 
+	)
+	SELECT @result = COUNT(0) FROM CTEYear WHERE Row = 1
+	RETURN @result;
+END;
+
+SELECT dbo.GetTotalSummary()
+SELECT dbo.GetSalesYearCount()
+SELECT dbo.GetTotalSummary() / dbo.GetSalesYearCount() AS YearlyAverage
+SELECT 3 / 2
+
+
+--SELECT @@ROWCOUNT;
+--SELECT @@IDENTITY;
+
+SELECT ROW_NUMBER() OVER (PARTITION BY DATEPART(YEAR, OrderDate) ORDER BY OrderDate) FROM Orders
+--TABLE VALUED FUNCTIONS
+CREATE FUNCTION GetSummaryByCustomerId (@id nchar(5)) 
+RETURNS TABLE
+AS RETURN (SELECT CONVERT(VARCHAR, o.OrderDate, 103) AS Date, FORMAT(SUM(od.UnitPrice * od.Quantity * (1 - od.Discount)), 'N2') AS Price
+		FROM Orders o
+		INNER JOIN [Order Details] od ON od.OrderID  = o.OrderID 
+		WHERE o.CustomerID = @id
+		GROUP BY CONVERT(VARCHAR, o.OrderDate, 103))
+		
+SELECT * FROM GetSummaryByCustomerId('BOLID')
+	
+CREATE OR ALTER FUNCTION GetAllContacts(@filter varchar(20))
+RETURNS @result TABLE (
+	FullName varchar(40),
+	Phone varchar(25),
+	Type char
+)
+AS BEGIN 
+	INSERT INTO @result
+	SELECT ContactName AS FullName, Phone, 'C' AS Type FROM Customers WHERE ContactName LIKE @filter + '%'
+	UNION 
+	SELECT CONCAT(FirstName, ' ', LastName), HomePhone, 'E' FROM Employees WHERE FirstName LIKE @filter + '%'
+	RETURN;
+END
+
+SELECT * FROM GetAllContacts ('alex')
+
+--STORED PROCEDURE
+CREATE OR ALTER PROCEDURE Deneme
+AS BEGIN
+	DECLARE @i INT
+	SET @i = 0
+	WHILE @i < 10
+	BEGIN 
+		PRINT @i
+		SET @i = @i + 1
+	END
+END
+EXEC Deneme
+
+CREATE OR ALTER PROCEDURE HayvanlarParaIleSatinAlinamaz
+AS BEGIN
+	DECLARE @i INT
+	DECLARE @t AS TABLE (Number INT)
+	SET @i = 0
+	WHILE @i < 10
+	BEGIN 
+		INSERT INTO @t VALUES (@i)
+		SET @i = @i + 1
+	END
+	
+	SELECT * FROM @t
+END
+
+EXEC HayvanlarParaIleSatinAlinamaz 
+
+CREATE OR ALTER PROCEDURE Contacts
+AS BEGIN 
+	SELECT ContactName AS FullName, Phone, 'C' AS Type FROM Customers
+	UNION 
+	SELECT CONCAT(FirstName, ' ', LastName), HomePhone, 'E' FROM Employees
+END
+
+EXECUTE Contacts
+
+CREATE OR ALTER PROCEDURE ContactsByFilter (@fn varchar(10) = NULL, @ln varchar(10) = NULL)
+AS BEGIN 
+	SELECT e.FirstName, e.LastName, e.HireDate, e.HomePhone FROM Employees e 
+	WHERE e.FirstName LIKE @fn + '%' OR e.LastName LIKE @ln + '%'
+END
+
+EXEC ContactsByFilter 'na'
+
+CREATE TABLE Logs
+(
+	Id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+	UserName VARCHAR(20) NOT NULL,
+	Date DATETIME DEFAULT GETDATE(),
+	TableName VARCHAR(30)
+)
+DROP TABLE Logs 
+--TRUNCATE : tabloyu sıfırlar, varsa identity insert, ona ait sequence da sıfırlanır
+--			 delete ile tablo sıfırlanır ise sequence kaldığı yerden devam eder			
+TRUNCATE TABLE Logs
+
+ALTER TABLE Logs
+DROP COLUMN TableName
+
+ALTER TABLE Logs 
+ADD ExecutedQuery nvarchar(max)
+SELECT NEWID()
+
+CREATE OR ALTER PROCEDURE GetCustomersById (@id nchar(5))
+AS BEGIN 
+	SELECT ContactName, CompanyName, Country, City, Phone FROM Customers WHERE CustomerID = @id
+	INSERT INTO Logs (UserName, ExecutedQuery) VALUES (SUSER_NAME(), 'Customers')
+END
+
+CREATE OR ALTER PROCEDURE GetCustomersByIdV2 (@id nchar(5))
+AS BEGIN 
+	DECLARE @query nvarchar(1024);
+	SET @query = FORMATMESSAGE('SELECT ContactName, CompanyName, Country, City, Phone FROM Customers WHERE CustomerID = ''%s''', CAST(@id AS varchar))
+	--PRINT @query -- anlık çıktı alabilmek için (Console.WriteLine)
+	EXEC (@query)
+	INSERT INTO Logs (UserName, ExecutedQuery) VALUES (SUSER_NAME(), @query)
+END
 
 
 
+DECLARE @q nvarchar(20)
+SET @q = 'SELECT 2'
+EXEC SP_EXECUTESQL @q
+EXEC GetCustomersById 'bergs'
+--DCL
+CREATE USER canperk WITH PASSWORD='1qaz2wsX!' 
+GRANT EXECUTE ON OBJECT::dbo.GetCustomersById TO canperk
+GRANT EXECUTE ON OBJECT::dbo.GetCustomersByIdV2 TO canperk
 
+SELECT 2
 
+SELECT login_name
+FROM sys.dm_exec_sessions ;
 
+SELECT @@SPID
+SELECT SUSER_NAME()
 
+SELECT * FROM Logs
 
+EXEC GetCustomersByIdV2 'bergs'
 
-
-
-
-
-
-
+SELECT FORMATMESSAGE('This is the %s and this is the', CAST(1 AS varchar)) AS Result;
 
 
 
