@@ -769,7 +769,7 @@ VALUES ('Kitap 1',1,1,120,1),
 	
 	
 INSERT INTO Transactions 
-VALUES ( 2, DATEADD(DAY, -15, GETDATE()), DATEADD(DAY, -10, GETDATE()), 10011),
+VALUES (10011, 2, DATEADD(DAY, -15, GETDATE()), DATEADD(DAY, -10, GETDATE())),
 		(10011, 3, DATEADD(DAY, -18, GETDATE()), DATEADD(DAY, -10, GETDATE())),
 		(10011, 1, DATEADD(DAY, -25, GETDATE()), DATEADD(DAY, -14, GETDATE())),
 		(10012, 2, DATEADD(DAY, -16, GETDATE()), DATEADD(DAY, -12, GETDATE())),
@@ -859,3 +859,259 @@ Author tablosunda ise Name ile yapılmaktadır.
 Gerekli indexleri oluşturunuz.
 
 */
+
+
+-------------------------######---05.03.2022---######--------------------------------
+
+/*
+ * CREATE [OR ALTER] function_name
+ * (
+ * 	@param1 data_type
+ * 	@param2 data_type
+ * 	@param3 data_type,
+ * )
+ * RETURNS return_data_type
+ * AS
+ * BEGIN
+ * DECLARE @return data_type
+ * -- ifadeler (set @return = bişeyler)
+ * RETURN @return
+ * END
+ * 
+ * */
+
+
+/*
+ * CREATE [OR ALTER] function_name
+ * (
+ * 	@param1 data_type
+ * 	@param2 data_type
+ * 	@param3 data_type,
+ * )
+ * RETURNS TABLE
+ * AS
+ * RETURN
+ * (
+ * 		-- sql sorgusunu (select sorgusunu)
+ * )
+ * */
+
+/*
+ * CREATE [OR ALTER] function_name
+ * (
+ * 	@param1 data_type
+ * 	@param2 data_type
+ * 	@param3 data_type,
+ * )
+ * RETURNS @table TABLE
+ * (
+ *  column1 data_type,
+ * 	column2 data_type
+ * )
+ * AS
+ * BEGIN
+ * 
+ *  (@table tablosunu oluşturduk/setledik)
+ * RETURN
+ * END
+ * 
+ * */
+
+
+
+CREATE FUNCTION fn_Topla(@sayi1 INT, @sayi2 INT)
+RETURNS INT
+AS
+BEGIN 
+	DECLARE @result INT
+	SET @result = @sayi1 + @sayi2
+	RETURN @result 
+END
+
+
+SELECT dbo.fn_Topla(3,4)
+
+-----
+
+CREATE FUNCTION fn_GetStudentByName(@firstName nvarchar(64))
+RETURNS TABLE 
+AS
+RETURN(
+
+	SELECT * FROM Students WHERE FirstName = @firstName
+)
+
+
+SELECT * FROM dbo.fn_GetStudentByName('Ahmet')
+
+-------
+
+CREATE FUNCTION fn_GetStudent(@firstName nvarchar(64))
+RETURNS @table TABLE 
+(
+	Name nvarchar(64),
+	Surname nvarchar(64),
+	Grade INT
+)
+AS
+BEGIN 
+	INSERT INTO @table
+	SELECT FirstName AS Name, LastName AS Surname, Grade FROM Students WHERE FirstName = @firstName
+	RETURN
+END
+
+	
+SELECT * FROM dbo.fn_GetStudent('Ahmet')
+
+
+
+
+-- iki metni birleştirip geriye tek metin döndüren fonksiyonu yazınız.(aralarında boşluk olmalı.)
+
+CREATE OR ALTER FUNCTION fn_Concat(@str1 nvarchar(64),@str2 nvarchar(64))
+RETURNS nvarchar(129)
+AS 
+BEGIN 
+	RETURN RTRIM(@str1) + SPACE(1) + RTRIM(@str2)
+END
+
+SELECT dbo.fn_Concat ('Sergen', 'Kahraman   ')
+
+
+-- Öğrenci numarası girilen öğrencinin okuduğu kitap sayısını getiren fonksiyon.
+
+CREATE OR ALTER FUNCTION fn_GetBookCountByStudentId(@studentId INT)
+RETURNS INT
+AS
+BEGIN 
+	RETURN (SELECT Count(0) FROM Transactions WHERE StudentId = @studentId)
+END
+
+SELECT dbo.fn_GetBookCountByStudentId(10011)
+
+
+-- Ortalama ürün satış fiyatını bulan fonksiyonu yazınız.
+
+
+CREATE OR ALTER FUNCTION fn_AvgUnitPriceOfProducts()
+RETURNS MONEY
+AS
+BEGIN 
+	RETURN(SELECT AVG(UnitPrice) FROM Products)
+END
+
+SELECT dbo.fn_AvgUnitPriceOfProducts()
+
+
+-- Toplam satış tutarı, verilen parametreden büyük olan Employee leri listeleyen fonksiyonu yazınız.
+-- (FullName, TotalPrice)
+
+/*
+ * CREATE [OR ALTER] function_name
+ * (
+ * 	@param1 data_type
+ * 	@param2 data_type
+ * 	@param3 data_type,
+ * )
+ * RETURNS TABLE
+ * AS
+ * RETURN
+ * (
+ * 		-- sql sorgusunu (select sorgusunu)
+ * )
+ * */
+
+
+
+
+CREATE OR ALTER FUNCTION fn_GetSuccessfulEmployees(@limit MONEY)
+RETURNS TABLE 
+AS
+RETURN(
+	SELECT CONCAT(e.FirstName, ' ', e.LastName) AS FullName, SUM(od.Quantity * od.UnitPrice) AS TotalPrice  
+	FROM Employees e
+	INNER JOIN Orders o ON o.EmployeeID = e.EmployeeID 
+	INNER JOIN [Order Details] od ON od.OrderID = o.OrderID 
+	GROUP BY CONCAT(e.FirstName, ' ', e.LastName)
+	HAVING SUM(od.Quantity * od.UnitPrice) > @limit 
+)
+
+SELECT * FROM dbo.fn_GetSuccessfulEmployees(100000) 
+SELECT * FROM dbo.fn_GetSuccessfulEmployees(150000)
+
+
+-- bu fonksiyon ile satışı 150.000 nin üstünde olan çalışanların HomePhone'larını getiriniz. (FullName, HomePhone)
+
+
+SELECT e.FirstName + ' ' + e.LastName FullName, e.HomePhone FROM Employees e
+INNER JOIN dbo.fn_GetSuccessfulEmployees(160000) fn ON fn.FullName = e.FirstName + ' ' + e.LastName  
+
+SELECT e.FirstName  + ' ' + e.LastName AS FullName, e.HomePhone FROM Employees e 
+WHERE e.FirstName + ' ' + e.LastName IN (SELECT fn.FullName FROM dbo.fn_GetSuccessfulEmployees(160000) fn)
+
+
+-- CustomerName i verilen müşterinin,
+-- Hangi üründen kaç adet alıp toplamda ne kadar ödediğini tablo olarak dönen fonksiyonu yazınız. 
+-- (ProductName, TotalCount, TotalPrice)
+
+
+
+CREATE OR ALTER FUNCTION fn_GetDetailBuCustomerName(@CustomerName nvarchar(40))
+RETURNS TABLE 
+AS
+RETURN(
+	SELECT p.ProductName, SUM(od.Quantity) AS TotalCount, SUM(od.Quantity * od.UnitPrice) AS TotalPrice 
+	FROM [Order Details] od 
+	INNER JOIN Orders o ON o.OrderID = od.OrderID 
+	INNER JOIN Customers c ON c.CustomerID = o.CustomerID 
+	INNER JOIN Products p ON od.ProductID = p.ProductID 
+	WHERE c.CompanyName = @CustomerName
+	GROUP BY p.ProductName 
+)
+
+SELECT * FROM dbo.fn_GetDetailBuCustomerName('Cactus Comidas para llevar')
+
+
+
+-- Her yılın en çok gelir getiren ürünün adını, total kazancını, yılı getiren fonksiyonu yazınız.
+-- (ProductName, TotalPrice, Year) (Yıllık en çok Kazandıran Ürün Raporu)
+
+
+
+
+
+CREATE OR ALTER FUNCTION fn_GetProductReportByYear()
+RETURNS @table TABLE
+(
+	ProductName nvarchar(40),
+	TotalPrice MONEY,
+	Year INT
+)
+AS
+BEGIN 
+	WITH numberedproducts AS (SELECT 
+	ROW_NUMBER() OVER(PARTITION BY DATEPART(YEAR, o.OrderDate) ORDER BY SUM(od.UnitPrice * od.Quantity) DESC) AS OrderNo,
+	p.ProductName,
+	DATEPART(YEAR, o.OrderDate) AS Year,
+	SUM(od.UnitPrice * od.Quantity) AS TotalPrice
+	FROM Orders o 
+	INNER JOIN [Order Details] od ON od.OrderID = o.OrderID 
+	INNER JOIN Products p ON p.ProductID = od.ProductID
+	GROUP BY p.ProductName, DATEPART(YEAR, o.OrderDate) 
+	)
+	INSERT INTO @table
+	SELECT ProductName, TotalPrice, Year FROM numberedproducts WHERE OrderNo = 1
+	RETURN;
+END
+
+
+SELECT * FROM dbo.fn_GetProductReportByYear() 
+
+
+-- ÖDEV
+-- TotalPrice'ı aynı çıkan ürünler varsa her ikisinide getirmek istiyoruz. Nasıl?
+
+
+
+
+
