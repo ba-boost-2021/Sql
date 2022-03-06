@@ -915,8 +915,6 @@ AS BEGIN
 	INSERT INTO Logs (UserName, ExecutedQuery) VALUES (SUSER_NAME(), @query)
 END
 
-
-
 DECLARE @q nvarchar(20)
 SET @q = 'SELECT 2'
 EXEC SP_EXECUTESQL @q
@@ -939,6 +937,189 @@ SELECT * FROM Logs
 EXEC GetCustomersByIdV2 'bergs'
 
 SELECT FORMATMESSAGE('This is the %s and this is the', CAST(1 AS varchar)) AS Result;
+
+SELECT CHECKSUM(NEWID()) -- Hascode
+
+SELECT NEWID()
+
+SELECT TOP 2 * FROM Employees e ORDER BY NEWID()
+
+-- GÜN 8
+CREATE OR ALTER PROCEDURE CreateOrder (@customerId NCHAR(5), @employeeId INT)
+AS BEGIN 
+	INSERT INTO Orders (CustomerID, OrderDate, ShippedDate, RequiredDate, EmployeeID)	
+	VALUES (@customerId, GETDATE(), DATEADD(DAY,1, GETDATE()), DATEADD(DAY, 3, GETDATE()), @employeeId)
+	SELECT @@IDENTITY -- Bir önceki eklenen satırdan elde edilen sequence değerini gösterir
+END
+
+CREATE OR ALTER PROCEDURE CreateOrderDetail(@orderId INT, @productId INT, @quantity INT, @hasdiscount bit = 0)
+AS BEGIN 
+	DECLARE @quantityInProducts INT
+	DECLARE @price MONEY
+	SELECT @quantityInProducts = UnitsInStock, @price = UnitPrice FROM Products WHERE ProductID = @productId
+	IF @quantityInProducts >= @quantity  
+	BEGIN 
+		DECLARE @discount DECIMAL(5,2)
+		SET @discount = 0
+		IF @hasDiscount = 1
+		BEGIN 
+			SET @discount = 0.05
+		END
+		INSERT INTO [Order Details] VALUES(@orderId, @productId, @price, @quantity, @discount)
+		UPDATE Products SET UnitsInStock = UnitsInStock - @quantity WHERE ProductID = @productId
+	END
+	ELSE
+	BEGIN 
+		THROW 50001, 'Ürün stokta belirtilen kadar yok', 1 -- RAISEERROR(50001, 'Message', 1)
+	END
+END
+
+----------------
+EXECUTE CreateOrder 'ANTON', 4
+
+EXECUTE CreateOrderDetail 11078, 23, 1
+EXECUTE CreateOrderDetail 11078, 4, 1, 1
+EXECUTE CreateOrderDetail 11078, 1, 1, 1
+----
+SELECT * FROM Orders WHERE OrderID = 11078
+SELECT * FROM [Order Details] WHERE OrderID = 11078
+
+--TRIGGER
+--CREATE OR ALTER TRIGGER OnOrderCreated
+--FOR INSERT ON [Order Details] -- after ile aynı
+--AFTER INSERT ON [Order Details] -- for ile aynı
+--INSTEAD OF INSERT
+
+CREATE OR ALTER TRIGGER OnProductIsBeingDeleted
+ON Products INSTEAD OF DELETE 
+AS BEGIN 
+	THROW 50000, 'Ürün silinemez', 1
+END
+
+
+DELETE FROM Products WHERE ProductID = 1
+SELECT * FROM Products WHERE ProductID = 1
+
+ALTER TABLE Products 
+ADD IsDeleted BIT DEFAULT (0)
+
+UPDATE Products SET IsDeleted = 0 WHERE 1 = 1
+
+ALTER TABLE Products
+ALTER COLUMN IsDeleted BIT NOT NULL 
+--------------------------------------------
+ALTER TABLE Products
+DROP CONSTRAINT DF__Products__IsDele__0E6E26BF
+
+ALTER TABLE Products
+DROP COLUMN IsDeleted
+
+ALTER TABLE Products 
+ADD IsDeleted BIT NOT NULL DEFAULT (0)
+
+CREATE OR ALTER TRIGGER OnProductIsBeingDeleted
+ON Products INSTEAD OF DELETE 
+AS BEGIN 
+	DECLARE @Id INT
+	SELECT @Id = ProductID FROM DELETED
+	UPDATE Products SET IsDeleted = 1 WHERE ProductID = @Id
+END
+DELETE FROM Products WHERE ProductID = 1
+------------------------------------------------
+CREATE OR ALTER TRIGGER OnOrderCreated
+ON [Order Details] AFTER INSERT
+AS BEGIN 
+	DECLARE @Id INT
+	DECLARE @Quantity INT
+	SELECT @Id = ProductID, @Quantity = Quantity FROM INSERTED
+	UPDATE Products SET UnitsInStock = UnitsInStock - @Quantity WHERE ProductID = @Id
+END
+
+SELECT * FROM Products WHERE ProductID = 1
+SELECT * FROM [Order Details] WHERE OrderID = 11078
+
+INSERT INTO [Order Details] VALUES (11078, 1078, 50, 2, 0)
+
+-------
+CREATE SCHEMA History
+CREATE TABLE Northwind.History.ProductAudits (
+	AuditID UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+	CreatedAt DATETIME DEFAULT GETDATE(),
+	ProductID int NOT NULL,
+	ProductName nvarchar(40) NULL,
+	SupplierID int NULL,
+	CategoryID int NULL,
+	QuantityPerUnit nvarchar(20) NULL,
+	UnitPrice money NULL,
+	UnitsInStock smallint NULL,
+	UnitsOnOrder smallint NULL,
+	ReorderLevel smallint NULL,
+	Discontinued bit NULL,
+	IsDeleted bit NULL,
+);
+
+CREATE OR ALTER TRIGGER OnProductUpserted
+ON Products FOR INSERT, UPDATE
+AS BEGIN 
+	INSERT INTO History.ProductAudits 
+	(ProductID, ProductName, SupplierID, CategoryID, QuantityPerUnit, UnitPrice, UnitsInStock, UnitsOnOrder, ReorderLevel, Discontinued, IsDeleted)
+	SELECT 
+		ProductID, ProductName, SupplierID, CategoryID, QuantityPerUnit, UnitPrice, UnitsInStock, UnitsOnOrder, ReorderLevel, Discontinued, IsDeleted
+	FROM INSERTED
+END
+
+--KISS : Keep It Simple and Stupid
+
+INSERT INTO Products
+	(ProductName, SupplierID, CategoryID, QuantityPerUnit, UnitPrice, UnitsInStock, UnitsOnOrder, ReorderLevel, Discontinued, IsDeleted)
+VALUES ('Coca - Cola', 1, 1, '6 btls in 1 pck.', 50, 120, 0, 1, 0, 0)
+
+
+DELETE FROM Products WHERE ProductID = 1078
+UPDATE Products SET IsDeleted = 0, UnitPrice = 54 WHERE ProductID = 1078
+
+SELECT * FROM History.ProductAudits
+
+--- CURSOR: 
+
+--Döngü ile karmaşık olan koşulları tek tek yönetmenin çözülebildiği bileşen
+
+-- Fiyatı 50 lira üstünde olup stokta olan ürünlere %10; olmayanlara %0 : stokta var ise : 60 -> 66, yok ise 60
+-- Fiyatı 50 lira altında olanlara %20 zam yapılsın : stok durumuna bakılmaksınız : 40 -> 48
+DECLARE @productId INT
+DECLARE productCursor CURSOR FOR 
+SELECT ProductID FROM Products
+OPEN productCursor
+FETCH NEXT FROM productCursor INTO @productId
+
+WHILE @@FETCH_STATUS = 0
+BEGIN 
+	DECLARE @price MONEY 
+	SET @price = (SELECT UnitPrice FROM Products WHERE ProductID = @productId AND UnitsInStock > 0 AND UnitPrice >= 50)
+	IF @price IS NOT NULL
+	BEGIN 
+		UPDATE Products SET UnitPrice = @price * 1.1 WHERE ProductID = @productId 
+	END
+	ELSE
+	BEGIN
+		SET @price = (SELECT UnitPrice FROM Products WHERE ProductID = @productId AND UnitPrice < 50)
+		IF @price IS NOT NULL
+		BEGIN 
+			UPDATE Products SET UnitPrice = @price * 1.2 WHERE ProductID = @productId 
+		END
+	END
+	FETCH NEXT FROM productCursor INTO @productId
+END
+CLOSE productCursor 
+DEALLOCATE productCursor
+
+
+
+
+
+
+
+
 
 
 
