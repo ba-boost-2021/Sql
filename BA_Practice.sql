@@ -1115,3 +1115,227 @@ SELECT * FROM dbo.fn_GetProductReportByYear()
 
 
 
+------------------------########---06.03.2022---#######--------------------------
+
+
+--Stored Procedure
+
+/*
+ * CREATE OR ALTER PROCEDURE procedure_name
+ * @Paramtere1 data_type,
+ * @Paramtere2 data_type,
+ * @Paramtere3 data_type
+ * AS
+ * sql_statement
+ * 
+ * 
+ * exec procedure_name parameter1,parameter2
+ * 
+ * */
+
+
+--  Ortalamanın altında kalan ürünlere yüzde 10 zam yapan StoredProcedure’ü yazınız.(ortalama için function kullanın)
+
+SELECT dbo.fn_AvgUnitPriceOfProducts() -- Ortalama getiren fonksiyonumuz..
+
+CREATE OR ALTER FUNCTION fn_AvgUnitPriceOfProducts()
+RETURNS MONEY
+AS
+BEGIN 
+	DECLARE @result MONEY 
+	SET @result = (SELECT AVG(UnitPrice) FROM Products)
+	RETURN @result;
+END
+
+CREATE OR ALTER FUNCTION fn_AvgUnitPriceOfProducts()
+RETURNS MONEY
+AS
+BEGIN 
+	RETURN(SELECT AVG(UnitPrice) FROM Products) 
+END
+
+
+SELECT dbo.fn_AvgUnitPriceOfProducts()
+
+--cevap
+CREATE OR ALTER PROCEDURE sp_UpdateUnitPrice
+AS
+UPDATE Products SET UnitPrice = 1.1*UnitPrice 
+WHERE UnitPrice < dbo.fn_AvgUnitPriceOfProducts()
+
+EXEC sp_UpdateUnitPrice
+
+
+-- Suppliers tablosuna insert yapan StoredProcedure’ü yazınız. Ekleme işleminden hemen sonra verinin kendisini listelesin.
+
+--exec procedure_name 'Sergen Kahraman', 'Manager', '3211584789'
+
+CREATE OR ALTER PROCEDURE sp_InsertSupplier
+@CompanyName NVARCHAR(40),
+@ContactName NVARCHAR(30),
+@City NVARCHAR(15)
+AS
+INSERT INTO Suppliers (CompanyName, ContactName, City) 
+VALUES (@CompanyName, @ContactName, @City)
+
+SELECT * FROM Suppliers ORDER BY SupplierID DESC
+
+
+
+exec dbo.sp_InsertSupplier 'Sergen Emlak', 'Sergen Kahraman', 'Mersin' 
+
+
+-- Products Tablosuna insert yapan storedProcedure’ü yazınız.
+
+-- c# Try/Catch
+CREATE OR ALTER PROCEDURE sp_InsertProducts
+@ProductName nvarchar(40),
+@SupplierID INT,
+@CategoryID INT,
+@UnitPrice MONEY
+AS
+
+BEGIN TRY
+INSERT INTO Products (ProductName, SupplierID, CategoryID, UnitPrice)
+VALUES (@ProductName, @SupplierID, @CategoryID, @UnitPrice)
+SELECT * FROM Products ORDER BY ProductID DESC
+END TRY
+BEGIN CATCH
+IF ERROR_NUMBER() = 547
+	BEGIN 
+		RAISERROR('Böyle bir tedarikçi veya kategori yoktur!', 1, 1)
+		--INSERT INTO Logs
+	END
+END CATCH
+
+EXEC dbo.sp_InsertProducts 'Deneme1', 1, 150, 250 
+
+-- sp_Delivery adında ve OrderId yi parametre alan bir stored procedure oluşturunuz.
+-- bu eğer spariş teslim edilmemişse. shippedDate i şuanki tarih yapsın.(Teslim edilsin)
+
+
+CREATE OR ALTER PROCEDURE sp_Delivery @OrderId INT
+AS
+IF(EXISTS(SELECT * FROM Orders WHERE OrderId= @OrderId AND ShippedDate IS NULL))
+BEGIN 
+	UPDATE Orders SET ShippedDate = GETDATE() WHERE OrderId = @OrderId
+	SELECT * FROM Orders WHERE OrderId = @OrderId
+END
+
+
+CREATE OR ALTER PROCEDURE sp_Delivery @OrderId INT
+AS
+DECLARE @shippedDate datetime
+SET @shippedDate = (SELECT ShippedDate FROM Orders WHERE OrderId = @OrderId)
+IF(@shippedDate IS NULL)
+BEGIN 
+	UPDATE Orders SET ShippedDate = GETDATE() WHERE OrderId = @OrderId
+	SELECT * FROM Orders WHERE OrderId = @OrderId
+END
+
+EXEC dbo.sp_Delivery 10248 
+EXEC dbo.sp_Delivery 10249 
+
+
+
+-- Triggers
+
+
+
+/*
+ * CREATE TRIGGER Trigger_Name
+ * ON Table_Name
+ * 
+ * {FOR|AFTER|INSTEAD OF}  {INSERT|UPDATE|DELETE}
+ * 
+ * AS
+ * BEGIN
+ * --sql_statement
+ * END
+ * 
+ * 
+ * inserted (geçici bir tablo) (INSERT sırasında)
+ * deleted   ""					(DELETE sırasında)
+ * 
+ * Update için, eski kayıt deleted içinde, yeni kayıt inserted içindedir.
+ * 
+ * 
+ * */
+
+
+
+CREATE OR ALTER TRIGGER trg_List
+ON Suppliers 
+AFTER INSERT
+AS
+BEGIN 
+	SELECT * FROM Suppliers ORDER BY SupplierID DESC
+END
+
+
+INSERT INTO Suppliers (CompanyName, ContactName, City) 
+VALUES ('Metehan Emlak','Metehan Satıcı','Ankara')
+
+
+CREATE OR ALTER PROCEDURE sp_InsertSupplier
+@CompanyName NVARCHAR(40),
+@ContactName NVARCHAR(30),
+@City NVARCHAR(15)
+AS
+INSERT INTO Suppliers (CompanyName, ContactName, City) 
+VALUES (@CompanyName, @ContactName, @City)
+
+EXEC sp_InsertSupplier 'Metehan Emlak', 'Metehan Satıcı', 'Ankara'
+
+-- Trigger pasifleştirme/aktifleştirme
+DISABLE TRIGGER trg_List ON Suppliers
+DISABLE TRIGGER ALL ON Suppliers
+ENABLE TRIGGER trg_List ON Suppliers 
+ENABLE TRIGGER ALL ON Suppliers
+
+
+
+
+--Orders’a Her insert işleminden sonra ayrı bir log tablosuna insert tarihini ve hangi Emloyee olduğunu yazınız. 
+--(Log tablosunu önceden Create edin.)
+
+
+CREATE TABLE OrderLogs(
+	
+	Id INT NOT NULL PRIMARY KEY IDENTITY(1,1),
+	CreatedAt datetime NOT NULL,
+	EmployeeName nvarchar(31) NOT NULL
+)
+
+CREATE OR ALTER TRIGGER trg_InsertLogForOrders
+ON Orders 
+AFTER INSERT
+AS
+BEGIN 
+	INSERT INTO OrderLogs
+	SELECT i.OrderDate AS CreatedAt, e.FirstName + ' ' +e.LastName AS EmployeeName 
+	FROM inserted i 
+	INNER JOIN Employees e ON e.EmployeeID = i.EmployeeID 
+	
+	SELECT * FROM OrderLogs ORDER BY Id DESC
+END
+
+INSERT INTO Orders (CustomerID, EmployeeID, OrderDate) VALUES ('ANATR',1,GETDATE())
+
+
+
+
+--ÖDEV 
+-- User tablosu oluşturun. (Id, UserName, Email, Password, CreatedAt)
+-- Öyle bir Trigger oluşturun ki,  'Admin' isimli kullanıcıyı silmesin ve output
+-- ekranına info yollasın. (Error Handling)
+
+
+
+
+
+
+
+
+
+
