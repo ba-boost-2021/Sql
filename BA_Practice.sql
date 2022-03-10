@@ -1333,6 +1333,218 @@ INSERT INTO Orders (CustomerID, EmployeeID, OrderDate) VALUES ('ANATR',1,GETDATE
 
 
 
+----------------------------########---10.03.2022---########-------------------------------
+
+--Ödev Çözüm
+CREATE TABLE [User](
+	Id INT NOT NULL PRIMARY KEY IDENTITY(1,1),
+	UserName NVARCHAR(64) NOT NULL,
+	Email NVARCHAR(64) NOT NULL,
+	Password NVARCHAR(64) NOT NULL,
+)
+
+INSERT INTO [User] VALUES ('Sergen', 'maili@')
+INSERT INTO [User] VALUES ('Admin', 'maili@')
+
+
+CREATE TRIGGER trg_PreventDelete ON [User]
+AFTER DELETE
+AS
+BEGIN 
+	IF(EXISTS(SELECT * FROM DELETED WHERE UserName = 'Admin'))
+	BEGIN 
+		RAISERROR('Admin kullanıcısı silinemez.', 1, 1)
+		ROLLBACK TRANSACTION -- işlemi iptal ettik
+	END
+END
+
+
+DELETE FROM [User]
+
+DELETE FROM [User] WHERE UserName = 'Admin'
+
+
+
+
+
+--Silinen öğrenciler Graduate tablosuna kaydedilsin.(Graduate tablosu oluşturulmalıdır.)
+
+--TRUNCATE TABLE Transactions 
+
+
+CREATE TABLE Graduates(
+	id INT NOT NULL PRIMARY KEY IDENTITY(1,1),
+	FirstName nvarchar(64),
+	LastName nvarchar(64),
+)
+
+CREATE OR ALTER TRIGGER trg_DeleteProcessStudent ON Students 
+INSTEAD OF DELETE 
+AS
+BEGIN
+	DECLARE @id INT
+	SET @id = (SELECT d.StudentNo FROM DELETED d)
+	DELETE FROM Transactions WHERE StudentId = @id
+	INSERT INTO Graduates SELECT d.FirstName, d.LastName FROM DELETED d
+	DELETE FROM Students WHERE StudentNo = @id
+END
+
+
+DELETE FROM Students WHERE StudentNo = 10012
+
+
+
+-- öğrencilerin cinsiyet alanları güncellenmesin.
+
+CREATE TRIGGER trg_Update ON Students 
+AFTER UPDATE
+AS
+BEGIN
+	IF(EXISTS(SELECT * FROM inserted,deleted WHERE inserted.StudentNo = deleted.StudentNo AND
+		inserted.Gender != deleted.Gender))
+		BEGIN 
+			RAISERROR('Cinsiyet silinemez',1,1)
+			ROLLBACK TRANSACTION 
+		END
+END
+
+UPDATE Students SET Gender = 'asdasd' WHERE StudentNo = 10013
+
+SELECT * FROM Students WHERE StudentNo = 10013
+
+
+
+
+-- Books tablosu güncellenirken eski sayfa sayısı yeni sayfa sayısından fazla olmak zorunda olsun.
+
+
+CREATE OR ALTER TRIGGER trg_UpdateBook ON Books 
+AFTER UPDATE
+AS
+BEGIN
+	IF(EXISTS(SELECT * FROM inserted,deleted WHERE inserted.Id = deleted.Id AND
+		inserted.PageCount < deleted.PageCount))
+		BEGIN 
+			RAISERROR('Sayfa sayısı daha az olamaz',1,1)
+			ROLLBACK TRANSACTION 
+		END
+END
+
+
+UPDATE Books SET PageCount = 100 WHERE Id = 1
+
+
+
+-- 500 sayfadan daha az Type1 türünde kitap eklenemesin.
+
+
+CREATE OR ALTER TRIGGER trg_BooksInsert ON Books
+AFTER INSERT
+AS
+BEGIN
+	DECLARE @TypeId INT
+	SET @TypeId = (SELECT Id FROM Types WHERE Name = 'Type1')
+	
+	IF(EXISTS(SELECT * FROM INSERTED WHERE TypeId = @TypeId AND PageCount < 500))
+	BEGIN
+		RAISERROR ('Sayfa Sayısı 500''den az olamaz',1,1)
+		ROLLBACK TRANSACTION 
+	END
+END
+
+INSERT INTO Books VALUES ('Test1', 1, 1, 300, 1)
+
+
+
+/*DECLARE @colon1 data-type, @colon2 data_type ...
+ * 
+ * DECLARE cursor_name CURSOR
+ * 		FOR select-statement
+ * 
+ * 
+ * OPEN cursor_name;
+ * 
+ * FETCH NEXT FROM cursor_name INTO variable_list
+ * 
+ * WHILE @@FETCH_STATUS = 0
+ * BEGIN
+ * 	FETCH NEXT FROM cursor_name
+ * --bazı işlemler
+ * END
+ * 
+ * 
+ * CLOSE cursor_name
+ * 
+ * DEALLOCATE cursor_name
+ * 
+ * 
+ * */
+
+
+
+
+DECLARE EmployeeCursor CURSOR
+	FOR SELECT FirstName, LastName FROM Employees
+
+	
+DECLARE @firstName nvarchar(20), @lastName nvarchar(10)	
+	
+OPEN EmployeeCursor
+
+FETCH NEXT FROM EmployeeCursor INTO @firstName, @lastName
+
+WHILE @@FETCH_STATUS = 0
+BEGIN
+	PRINT @firstName + ' ' + @lastName
+	FETCH NEXT FROM EmployeeCursor INTO @firstName, @lastName
+END
+
+CLOSE EmployeeCursor 
+
+DEALLOCATE EmployeeCursor
+
+
+
+-- Cursor kullanarak, 
+--bir ürün fiyatı ortalamanın %50 ve daha üstündeyse bu ürünün fiyatına %10 indirim yap, 
+--%50 nin altındaysa %5 indirim yap, ortalamanın altındaysa %10 zam yap.
+
+DECLARE @productId INT, @unitPrice MONEY
+
+DECLARE productCursor CURSOR 
+	FOR SELECT ProductID, UnitPrice FROM Products
+
+OPEN productCursor
+
+FETCH NEXT FROM productCursor INTO @productId, @unitPrice
+DECLARE @avg MONEY 
+SET @avg = (SELECT Avg(UnitPrice) FROM Products)
+
+WHILE @@FETCH_STATUS = 0
+BEGIN 
+	IF(@unitPrice > @avg + @avg/2)
+	BEGIN 
+		UPDATE Products SET UnitPrice = 0.9*UnitPrice WHERE ProductID = @productId
+	END
+	ELSE IF(@unitPrice <= @avg + @avg/2 AND @unitPrice >= @avg)
+	BEGIN
+		UPDATE Products SET UnitPrice = 0.95*UnitPrice WHERE ProductID = @productId
+	END
+	ELSE
+	BEGIN 
+		UPDATE Products SET UnitPrice = 1.1*UnitPrice WHERE ProductID = @productId
+	END
+	PRINT CONCAT(@productId , ' ' , @unitPrice , ' ' , @avg)
+	
+	FETCH NEXT FROM productCursor INTO @productId, @unitPrice
+END
+CLOSE productCursor
+DEALLOCATE productCursor
+
+
+
+
+
 
 
 
